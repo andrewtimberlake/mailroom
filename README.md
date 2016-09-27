@@ -1,6 +1,21 @@
 # Mailroom
 
-**TODO: Add description**
+Send, receive and process emails.
+
+## Example:
+
+```elixir
+alias Mailroom.POP3
+
+{:ok, client} = POP3.connect(server, username, password, port: port, ssl: true)
+POP3.each_mail(client, fn(mail) ->
+  {:ok, message} = POP3.retrieve(client, mail)
+  # process message
+  :ok = POP3.delete(client, mail)
+end)
+:ok = POP3.reset(client)
+:ok = POP3.close(client)
+```
 
 ## Installation
 
@@ -21,4 +36,3 @@ If [available in Hex](https://hex.pm/docs/publish), the package can be installed
       [applications: [:mailroom]]
     end
     ```
-
