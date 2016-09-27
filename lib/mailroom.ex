@@ -1,0 +1,2 @@
+defmodule Mailroom do
+end
