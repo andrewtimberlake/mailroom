@@ -51,7 +51,7 @@ defmodule Mailroom.POP3 do
     do: retrieve(socket, id)
   def retrieve(socket, id) do
     :ok = Socket.send(socket, "RETR #{id}\r\n")
-    lines = receive_till(socket, ".\r\n")
+    lines = receive_till(socket, ".")
     {:ok, tl(lines)}
   end
 
@@ -104,7 +104,7 @@ defmodule Mailroom.POP3 do
 
   defp send_list(socket) do
     :ok = Socket.send(socket, "LIST\r\n")
-    {:ok, receive_till(socket, ".\r\n")}
+    {:ok, receive_till(socket, ".")}
   end
 
   defp send_stat(socket) do

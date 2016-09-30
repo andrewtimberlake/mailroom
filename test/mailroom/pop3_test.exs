@@ -80,14 +80,15 @@ defmodule Mailroom.POP3Test do
         |> TestServer.on("STAT\r\n",                  "+OK 2 234\r\n")
         |> TestServer.on("RETR 1\r\n",                """
         +OK 123 octets
-        #{msg}.
+        #{msg}
+        .
         """ |> String.replace(~r/(?<!\r)\n/, "\r\n"))
       end)
 
       {:ok, client} = POP3.connect(server.address, "test@example.com", "P@55w0rD", port: server.port, ssl: unquote(ssl))
       {2, 234} = POP3.stat(client)
       {:ok, lines} = POP3.retrieve(client, 1)
-      assert msg == Enum.join(lines)
+      assert msg == Enum.join(lines, "\r\n")
     end
 
     test "delete #{description}" do

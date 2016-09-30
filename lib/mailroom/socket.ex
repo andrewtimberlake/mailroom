@@ -22,9 +22,9 @@ defmodule Mailroom.Socket do
     do: :gen_tcp.connect(addr, port, opts, timeout)
 
   def recv(%{debug: debug} = socket) do
-    {:ok, message} = do_recv(socket)
-    if debug, do: IO.inspect(message)
-    {:ok, message}
+    {:ok, line} = do_recv(socket)
+    if debug, do: IO.inspect(line)
+    {:ok, String.replace_suffix(line, "\r\n", "")}
   end
 
   defp do_recv(%{socket: socket, ssl: true, timeout: timeout}),
