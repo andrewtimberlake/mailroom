@@ -1,16 +1,17 @@
 defmodule Mailroom.POP3 do
+  alias Mailroom.Socket
+
   @timeout 15_000
 
   @doc ~S"""
 
   """
   def connect(server, username, password, options \\ []) do
-    timeout = Keyword.get(options, :timeout, @timeout)
-    debug   = Keyword.get(options, :debug, false)
-    {:ok, socket} = do_connect(server, options)
-    client = %{socket: socket, timeout: timeout, debug: debug}
-    case login(client, username, password) do
-      :ok -> {:ok, client}
+    ssl = Keyword.get(options, :ssl, false)
+    port = Keyword.get(options, :port, (if ssl, do: 995, else: 110))
+    {:ok, socket} = Socket.connect(server, port, options)
+    case login(socket, username, password) do
+      :ok -> {:ok, socket}
       {:error, reason} -> {:error, :authentication, reason}
     end
   end
@@ -18,21 +19,21 @@ defmodule Mailroom.POP3 do
   @doc ~S"""
 
   """
-  def close(%{socket: socket} = client) do
-    quit(client)
-    close_socket(socket)
+  def close(socket) do
+    quit(socket)
+    Socket.close(socket)
   end
 
-  def stat(client) do
-    {:ok, data} = send_stat(client)
+  def stat(socket) do
+    {:ok, data} = send_stat(socket)
     parse_stat(String.strip(data))
   end
 
   @doc ~S"""
 
   """
-  def list(client) do
-    {:ok, data} = send_list(client)
+  def list(socket) do
+    {:ok, data} = send_list(socket)
     data
     |> Enum.drop(1)
     |> Enum.reduce([], fn
@@ -45,82 +46,82 @@ defmodule Mailroom.POP3 do
   @doc ~S"""
 
   """
-  def retrieve(client, mail)
-  def retrieve(client, {id, _size}),
-    do: retrieve(client, id)
-  def retrieve(client, id) do
-    :ok = socket_send(client, "RETR #{id}\r\n")
-    lines = receive_till(client, ".\r\n")
+  def retrieve(socket, mail)
+  def retrieve(socket, {id, _size}),
+    do: retrieve(socket, id)
+  def retrieve(socket, id) do
+    :ok = Socket.send(socket, "RETR #{id}\r\n")
+    lines = receive_till(socket, ".\r\n")
     {:ok, tl(lines)}
   end
 
   @doc ~S"""
 
   """
-  def delete(client, mail)
-  def delete(client, {id, _size}),
-    do: delete(client, id)
-  def delete(client, id) do
-    :ok = socket_send(client, "DELE #{id}\r\n")
-    {:ok, _} = recv(client)
+  def delete(socket, mail)
+  def delete(socket, {id, _size}),
+    do: delete(socket, id)
+  def delete(socket, id) do
+    :ok = Socket.send(socket, "DELE #{id}\r\n")
+    {:ok, _} = recv(socket)
     :ok
   end
 
   @doc ~S"""
 
   """
-  def reset(client) do
-    :ok = socket_send(client, "RSET\r\n")
-    {:ok, _} = recv(client)
+  def reset(socket) do
+    :ok = Socket.send(socket, "RSET\r\n")
+    {:ok, _} = recv(socket)
     :ok
   end
 
   @doc ~S"""
 
   """
-  def quit(client) do
-    :ok = socket_send(client, "QUIT\r\n")
-    {:ok, _} = recv(client)
+  def quit(socket) do
+    :ok = Socket.send(socket, "QUIT\r\n")
+    {:ok, _} = recv(socket)
     :ok
   end
 
-  defp login(client, username, password) do
-    with {:ok, _} <- recv(client),
-         {:ok, _} <- send_user(client, username),
-         {:ok, _} <- send_pass(client, password),
+  defp login(socket, username, password) do
+    with {:ok, _} <- recv(socket),
+         {:ok, _} <- send_user(socket, username),
+         {:ok, _} <- send_pass(socket, password),
       do: :ok
   end
 
-  defp send_user(client, username) do
-    :ok = socket_send(client, "USER " <> username <> "\r\n")
-    recv(client)
+  defp send_user(socket, username) do
+    :ok = Socket.send(socket, "USER " <> username <> "\r\n")
+    recv(socket)
   end
 
-  defp send_pass(client, password) do
-    :ok = socket_send(client, "PASS " <> password <> "\r\n")
-    recv(client)
+  defp send_pass(socket, password) do
+    :ok = Socket.send(socket, "PASS " <> password <> "\r\n")
+    recv(socket)
   end
 
-  defp send_list(client) do
-    :ok = socket_send(client, "LIST\r\n")
-    {:ok, receive_till(client, ".\r\n")}
+  defp send_list(socket) do
+    :ok = Socket.send(socket, "LIST\r\n")
+    {:ok, receive_till(socket, ".\r\n")}
   end
 
-  defp send_stat(client) do
-    :ok = socket_send(client, "STAT\r\n")
-    recv(client)
+  defp send_stat(socket) do
+    :ok = Socket.send(socket, "STAT\r\n")
+    recv(socket)
   end
 
-  defp receive_till(client, match, acc \\ [])
-  defp receive_till(client, match, acc) do
-    {:ok, data} = socket_recv(client)
-    check_if_end_of_stream(client, match, data, acc)
+  defp receive_till(socket, match, acc \\ [])
+  defp receive_till(socket, match, acc) do
+    {:ok, data} = Socket.recv(socket)
+    check_if_end_of_stream(socket, match, data, acc)
   end
 
-  defp check_if_end_of_stream(_client, match, match, acc),
+  defp check_if_end_of_stream(_socket, match, match, acc),
     do: Enum.reverse(acc)
-  defp check_if_end_of_stream(client, match, data, acc),
-    do: receive_till(client, match, [data | acc])
+  defp check_if_end_of_stream(socket, match, data, acc),
+    do: receive_till(socket, match, [data | acc])
 
   defp parse_stat(data, count \\ "", size \\ nil)
   defp parse_stat("", count, size),
@@ -136,22 +137,8 @@ defmodule Mailroom.POP3 do
   defp parse_stat(<<char :: binary-size(1), rest :: binary>>, count, size),
     do: parse_stat(rest, count, size <> char)
 
-  defp do_connect(server, options) do
-    ssl = Keyword.get(options, :ssl, false)
-    timeout = Keyword.get(options, :timeout, @timeout)
-    port = Keyword.get(options, :port, (if ssl, do: 995, else: 110))
-    opts = [:binary, packet: :line, reuseaddr: true, active: false]
-    addr = String.to_charlist(server)
-    if ssl do
-      :ok = :ssl.start
-      {:ok, socket} = :ssl.connect(addr, port, opts, timeout)
-    else
-      {:ok, socket} = :gen_tcp.connect(addr, port, opts, timeout)
-    end
-  end
-
-  defp recv(client) do
-    {:ok, msg} = socket_recv(client)
+  defp recv(socket) do
+    {:ok, msg} = Socket.recv(socket)
     case msg do
       <<"+OK", msg :: binary>> ->
         {:ok, msg}
@@ -159,32 +146,4 @@ defmodule Mailroom.POP3 do
         {:error, String.strip(reason)}
     end
   end
-
-  defp socket_recv(%{socket: {:sslsocket, _, _} = socket, debug: debug, timeout: timeout}) do
-    {:ok, message} = :ssl.recv(socket, 0, timeout)
-    message = to_string(message)
-    if debug, do: IO.inspect(message)
-    {:ok, message}
-  end
-  defp socket_recv(%{socket: socket, timeout: timeout, debug: debug}) do
-    {:ok, message} = :gen_tcp.recv(socket, 0, timeout)
-    message = to_string(message)
-    if debug, do: IO.inspect(message)
-    {:ok, message}
-  end
-
-  defp socket_send(%{socket: {:sslsocket, _, _} = socket, debug: debug}, data) when is_binary(data) do
-    if debug, do: IO.inspect(data)
-    data = String.to_charlist(data)
-    :ssl.send(socket, data)
-  end
-  defp socket_send(%{socket: socket, debug: debug}, data) when is_binary(data) do
-    if debug, do: IO.inspect(data)
-    :gen_tcp.send(socket, data)
-  end
-
-  defp close_socket({:sslsocket, _, _} = socket),
-    do: :ok = :ssl.close(socket)
-  defp close_socket(socket),
-    do: :ok = :gen_tcp.close(socket)
 end
