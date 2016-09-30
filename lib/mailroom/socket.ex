@@ -35,7 +35,7 @@ defmodule Mailroom.Socket do
     ssl = Keyword.get(opts, :ssl, false)
     timeout = Keyword.get(opts, :timeout, @timeout)
     debug = Keyword.get(opts, :debug, false)
-    if debug, do: IO.puts("<connecting>")
+    if debug, do: IO.puts("[connecting]")
 
     connect_opts = [:binary, packet: :line, reuseaddr: true, active: false]
     addr = String.to_charlist(server)
@@ -63,7 +63,7 @@ defmodule Mailroom.Socket do
   def recv(%{debug: debug} = socket) do
     case do_recv(socket) do
       {:ok, line} ->
-        if debug, do: IO.inspect(line)
+        if debug, do: IO.write(["> ", line])
         {:ok, String.replace_suffix(line, "\r\n", "")}
       {:error, reason} -> {:error, to_string(reason)}
     end
@@ -83,7 +83,7 @@ defmodule Mailroom.Socket do
   """
   @spec send(t, String.t) :: :ok | {:error, String.t}
   def send(%{debug: debug} = socket, data) do
-    if debug, do: IO.inspect(data)
+    if debug, do: IO.write(["< ", data])
     case do_send(socket, data) do
       :ok -> :ok
       {:error, reason} -> {:error, to_string(reason)}
@@ -104,7 +104,7 @@ defmodule Mailroom.Socket do
   """
   @spec close(t) :: :ok
   def close(%{debug: debug} = socket) do
-    if debug, do: IO.puts("<closing connection>")
+    if debug, do: IO.puts("[closing connection]")
     do_close(socket)
   end
 
