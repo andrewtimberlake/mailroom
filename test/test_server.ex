@@ -16,6 +16,8 @@ end
 defmodule Mailroom.TestServer do
   use GenServer
 
+  @tcp_opts [:binary, packet: :line, active: false, reuseaddr: true]
+
   def start_link(opts \\ []) do
     GenServer.start_link(__MODULE__, opts)
   end
@@ -54,23 +56,51 @@ defmodule Mailroom.TestServer do
   end
 
   def serve_client(socket, conversation, response \\ nil)
-  def serve_client(socket, [{:connect, response} | tail], nil) do
+  def serve_client(socket, [{:connect, response, options} | tail], nil) do
     socket_send(socket, response)
+    socket = upgrade_to_ssl(socket, options)
     {:ok, data} = socket_recv(socket)
     serve_client(socket, tail, data)
   end
-  def serve_client(socket, [{data, response}], data) do
+  def serve_client(socket, [{[data], response, options} | tail], data) do
+    socket_send(socket, response)
+    socket = upgrade_to_ssl(socket, options)
+    {:ok, data} = socket_recv(socket)
+    serve_client(socket, tail, data)
+  end
+  def serve_client(socket, [{[data], response, _options}], data) do
     socket_send(socket, response)
     :ok
   end
-  def serve_client(socket, [{data, response} | tail], data) do
+  def serve_client(socket, [{data, response, _options}], data) do
     socket_send(socket, response)
+    :ok
+  end
+  def serve_client(socket, [{[data | data_tail], response, options} | tail], data) do
+    {:ok, data} = socket_recv(socket)
+    serve_client(socket, [{data_tail, response, options} | tail], data)
+  end
+  def serve_client(socket, [{data, response, options} | tail], data) do
+    socket_send(socket, response)
+    socket = upgrade_to_ssl(socket, options)
     {:ok, data} = socket_recv(socket)
     serve_client(socket, tail, data)
   end
-  def serve_client(socket, [{expected, _response} | _tail], actual) do
+  def serve_client(socket, [{expected, _response, _options} | _tail], actual) do
     socket_send(socket, "Expected #{inspect(expected)} but received #{inspect(actual)}\r\n")
     {:error, expected, actual}
+  end
+
+  defp upgrade_to_ssl({:sslsocket, _, _} = socket, _options), do: socket
+  defp upgrade_to_ssl(socket, options) do
+    if Keyword.get(options, :ssl) do
+      :ok = :ssl.start
+      opts = [[certfile: Path.join(__DIR__, "certificate.pem"), keyfile: Path.join(__DIR__, "key.pem")] | @tcp_opts]
+      {:ok, socket} = :ssl.ssl_accept(socket, opts, 1_000)
+      socket
+    else
+      socket
+    end
   end
 
   def start(opts \\ []) do
@@ -98,11 +128,10 @@ defmodule Mailroom.TestServer do
     cast(server.pid, {:start, expectations})
   end
 
-  def on(expectations, recv, send) do
-    [{recv, send} | expectations]
+  def on(expectations, recv, send, options \\ []) do
+    [{recv, send, options} | expectations]
   end
 
-  @tcp_opts [:binary, packet: :line, active: false, reuseaddr: true]
   defp get_socket(false),
     do: :gen_tcp.listen(0, @tcp_opts)
   defp get_socket(true) do

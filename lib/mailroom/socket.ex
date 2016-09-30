@@ -31,15 +31,15 @@ defmodule Mailroom.Socket do
       {:ok, socket} = #{inspect(__MODULE__)}.connect("localhost", 110, ssl: true)
   """
   @spec connect(String.t, integer, Keyword.t) :: {:ok, t} | {:error, String.t}
+  @connect_opts [:binary, packet: :line, reuseaddr: true, active: false]
   def connect(server, port, opts \\ []) do
     ssl = Keyword.get(opts, :ssl, false)
     timeout = Keyword.get(opts, :timeout, @timeout)
     debug = Keyword.get(opts, :debug, false)
     if debug, do: IO.puts("[connecting]")
 
-    connect_opts = [:binary, packet: :line, reuseaddr: true, active: false]
     addr = String.to_charlist(server)
-    case do_connect(addr, ssl, port, connect_opts, timeout) do
+    case do_connect(addr, ssl, port, @connect_opts, timeout) do
       {:ok, socket} -> {:ok, %__MODULE__{socket: socket, ssl: ssl, timeout: timeout, debug: debug}}
       {:error, reason} -> {:error, to_string(reason)}
     end
@@ -94,6 +94,16 @@ defmodule Mailroom.Socket do
     do: :ssl.send(socket, data)
   defp do_send(%{socket: socket, ssl: false}, data),
     do: :gen_tcp.send(socket, data)
+
+  def ssl_client(%{socket: socket, ssl: true} = socket),
+    do: socket
+  def ssl_client(%{socket: socket, timeout: timeout} = client) do
+    :ok = :ssl.start
+    case :ssl.connect(socket, @connect_opts, timeout) do
+      {:ok, socket} -> {:ok, %{client | socket: socket, ssl: true}}
+      {:error, reason} -> {:error, to_string(reason)}
+    end
+  end
 
   @doc """
   Closes the connection
