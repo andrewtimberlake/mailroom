@@ -34,7 +34,6 @@ defmodule Mailroom.POP3 do
   def list(client) do
     {:ok, data} = send_list(client)
     data
-    |> String.split("\r\n")
     |> Enum.drop(1)
     |> Enum.reduce([], fn
       (".", acc) -> acc
@@ -51,9 +50,8 @@ defmodule Mailroom.POP3 do
     do: retrieve(client, id)
   def retrieve(client, id) do
     :ok = socket_send(client, "RETR #{id}\r\n")
-    {:ok, message} = receive_till_end(client)
-    [_, message] = String.split(message, "\r\n", parts: 2)
-    {:ok, message}
+    lines = receive_till(client, ".\r\n")
+    {:ok, tl(lines)}
   end
 
   @doc ~S"""
@@ -105,7 +103,7 @@ defmodule Mailroom.POP3 do
 
   defp send_list(client) do
     :ok = socket_send(client, "LIST\r\n")
-    receive_till_end(client)
+    {:ok, receive_till(client, ".\r\n")}
   end
 
   defp send_stat(client) do
@@ -113,29 +111,23 @@ defmodule Mailroom.POP3 do
     recv(client)
   end
 
-  defp receive_till_end(client, message \\ nil)
-  defp receive_till_end(client, nil) do
-    {:ok, message} = recv(client)
-    process_receive_till_end(client, message)
-  end
-  defp receive_till_end(client, acc) do
-    {:ok, message} = socket_recv(client)
-    message = acc <> to_string(message)
-    process_receive_till_end(client, message)
+  defp receive_till(client, match, acc \\ [])
+  defp receive_till(client, match, acc) do
+    {:ok, data} = socket_recv(client)
+    check_if_end_of_stream(client, match, data, acc)
   end
 
-  defp process_receive_till_end(client, message) do
-    if String.ends_with?(message, "\r\n.\r\n") do
-      {:ok, String.replace_trailing(message, "\r\n.\r\n", "")}
-    else
-      receive_till_end(client, message)
-    end
-  end
+  defp check_if_end_of_stream(_client, match, match, acc),
+    do: Enum.reverse(acc)
+  defp check_if_end_of_stream(client, match, data, acc),
+    do: receive_till(client, match, [data | acc])
 
   defp parse_stat(data, count \\ "", size \\ nil)
   defp parse_stat("", count, size),
     do: {String.to_integer(count), String.to_integer(size)}
   defp parse_stat(" ", count, size),
+    do: {String.to_integer(count), String.to_integer(size)}
+  defp parse_stat(<<"\r", _rest :: binary>>, count, size),
     do: {String.to_integer(count), String.to_integer(size)}
   defp parse_stat(<<" ", rest :: binary>>, count, nil),
     do: parse_stat(rest, count, "")
