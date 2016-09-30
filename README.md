@@ -8,7 +8,9 @@ Send, receive and process emails.
 alias Mailroom.POP3
 
 {:ok, client} = POP3.connect(server, username, password, port: port, ssl: true)
-POP3.each_mail(client, fn(mail) ->
+client
+|> POP3.list
+|> Enum.each(fn(mail) ->
   {:ok, message} = POP3.retrieve(client, mail)
   # process message
   :ok = POP3.delete(client, mail)
