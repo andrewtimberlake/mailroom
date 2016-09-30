@@ -70,7 +70,7 @@ defmodule Mailroom.POP3Test do
       Subject: This is a test
 
       This is a test message
-      """
+      """ |> String.replace("\n", "\r\n")
 
       TestServer.expect(server, fn(expectations) ->
         expectations
@@ -82,7 +82,7 @@ defmodule Mailroom.POP3Test do
         +OK 123 octets
         #{msg}
         .
-        """ |> String.replace("\n", "\r\n"))
+        """ |> String.replace(~r/(?<!\r)\n/, "\r\n"))
       end)
 
       {:ok, client} = POP3.connect(server.address, "test@example.com", "P@55w0rD", port: server.port, ssl: unquote(ssl))

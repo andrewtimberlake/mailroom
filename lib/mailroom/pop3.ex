@@ -53,7 +53,7 @@ defmodule Mailroom.POP3 do
     :ok = socket_send(client, "RETR #{id}\r\n")
     {:ok, message} = receive_till_end(client)
     [_, message] = String.split(message, "\r\n", parts: 2)
-    {:ok, String.replace(message, "\r\n", "\n")}
+    {:ok, message}
   end
 
   @doc ~S"""
