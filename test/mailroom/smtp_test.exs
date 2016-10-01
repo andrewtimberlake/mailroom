@@ -98,4 +98,55 @@ defmodule Mailroom.SMTPTest do
     {:ok, client} = SMTP.connect(server.address, port: server.port, username: "username", password: "password")
     SMTP.quit(client)
   end
+
+  test "SMTP with AUTH PLAIN no username" do
+    server = TestServer.start
+
+    TestServer.expect(server, fn(expectations) ->
+      expectations
+      |> TestServer.on(:connect,
+                       "220 myserver.com.\r\n")
+      |> TestServer.on("EHLO #{SMTP.fqdn}\r\n",
+                       "250-myserver.com\r\n250 AUTH PLAIN\r\n")
+    end)
+
+    assert {:error, "Missing username"} = SMTP.connect(server.address, port: server.port)
+  end
+
+  test "SMTP with AUTH PLAIN no password" do
+    server = TestServer.start
+
+    TestServer.expect(server, fn(expectations) ->
+      expectations
+      |> TestServer.on(:connect,
+                       "220 myserver.com.\r\n")
+      |> TestServer.on("EHLO #{SMTP.fqdn}\r\n",
+                       "250-myserver.com\r\n250 AUTH PLAIN\r\n")
+    end)
+
+    assert {:error, "Missing password"} = SMTP.connect(server.address, port: server.port, username: "username")
+  end
+
+  test "SMTP with AUTH LOGIN" do
+    server = TestServer.start
+
+    TestServer.expect(server, fn(expectations) ->
+      expectations
+      |> TestServer.on(:connect,
+                       "220 myserver.com.\r\n")
+      |> TestServer.on("EHLO #{SMTP.fqdn}\r\n",
+                       "250-myserver.com\r\n250 AUTH LOGIN PLAIN\r\n")
+      |> TestServer.on("AUTH LOGIN\r\n",
+                       "334 VXNlcm5hbWU6\r\n")
+      |> TestServer.on("dXNlcm5hbWU=\r\n",
+                       "334 UGFzc3dvcmQ6\r\n")
+      |> TestServer.on("cGFzc3dvcmQ=\r\n",
+                       "235 Authenticated\r\n")
+      |> TestServer.on("QUIT\r\n",
+                       "221 Bye\r\n")
+    end)
+
+    {:ok, client} = SMTP.connect(server.address, port: server.port, username: "username", password: "password")
+    SMTP.quit(client)
+  end
 end
