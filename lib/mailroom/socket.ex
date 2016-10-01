@@ -31,7 +31,8 @@ defmodule Mailroom.Socket do
       {:ok, socket} = #{inspect(__MODULE__)}.connect("localhost", 110, ssl: true)
   """
   @spec connect(String.t, integer, Keyword.t) :: {:ok, t} | {:error, String.t}
-  @connect_opts [:binary, packet: :line, reuseaddr: true, active: false]
+  @connect_opts [:binary, packet: :line, reuseaddr: true, active: false, keepalive: true]
+  @ssl_connect_opts [depth: 0]
   def connect(server, port, opts \\ []) do
     ssl = Keyword.get(opts, :ssl, false)
     timeout = Keyword.get(opts, :timeout, @timeout)
@@ -45,10 +46,8 @@ defmodule Mailroom.Socket do
     end
   end
 
-  defp do_connect(addr, true, port, opts, timeout) do
-    :ok = :ssl.start
-    :ssl.connect(addr, port, opts, timeout)
-  end
+  defp do_connect(addr, true, port, opts, timeout),
+    do: :ssl.connect(addr, port, opts, timeout)
   defp do_connect(addr, false, port, opts, timeout),
     do: :gen_tcp.connect(addr, port, opts, timeout)
 
@@ -98,9 +97,9 @@ defmodule Mailroom.Socket do
   def ssl_client(%{socket: socket, ssl: true} = socket),
     do: socket
   def ssl_client(%{socket: socket, timeout: timeout} = client) do
-    :ok = :ssl.start
-    case :ssl.connect(socket, @connect_opts, timeout) do
+    case :ssl.connect(socket, @connect_opts ++ @ssl_connect_opts, timeout) do
       {:ok, socket} -> {:ok, %{client | socket: socket, ssl: true}}
+      {:error, {key, reason}} -> {:error, {key, to_string(reason)}}
       {:error, reason} -> {:error, to_string(reason)}
     end
   end

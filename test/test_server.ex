@@ -94,7 +94,6 @@ defmodule Mailroom.TestServer do
   defp upgrade_to_ssl({:sslsocket, _, _} = socket, _options), do: socket
   defp upgrade_to_ssl(socket, options) do
     if Keyword.get(options, :ssl) do
-      :ok = :ssl.start
       opts = [[certfile: Path.join(__DIR__, "certificate.pem"), keyfile: Path.join(__DIR__, "key.pem")] | @tcp_opts]
       {:ok, socket} = :ssl.ssl_accept(socket, opts, 1_000)
       socket
