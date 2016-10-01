@@ -7,6 +7,7 @@ defmodule Mailroom.SMTP do
     with {:ok, _banner} <- read_banner(socket),
          {:ok, extensions} <- greet(socket),
          {:ok, socket, _extensions} <- try_starttls(socket, extensions),
+         {:ok, socket} <- try_auth(socket, extensions, options),
       do: {:ok, socket}
   end
 
@@ -80,7 +81,7 @@ defmodule Mailroom.SMTP do
   end
 
   defp try_starttls(socket, extensions) do
-    if supports_tls?(extensions) do
+    if supports_extension?("STARTTLS", extensions) do
       {:ok, socket} = do_starttls(socket) # TODO: Need to handle error case
       {:ok, extensions} = try_ehlo(socket)            # TODO: Need to handle error case
       {:ok, socket, extensions}
@@ -89,15 +90,34 @@ defmodule Mailroom.SMTP do
     end
   end
 
-  defp supports_tls?([]), do: false
-  defp supports_tls?([["STARTTLS" | _] | _tail]), do: true
-  defp supports_tls?([_ | tail]), do: supports_tls?(tail)
+  defp supports_extension?(_name, []), do: false
+  defp supports_extension?(name, [[name | _] | _tail]), do: true
+  defp supports_extension?(name, [_ | tail]), do: supports_extension?(name, tail)
 
   defp do_starttls(socket) do
     Socket.send(socket, "STARTTLS\r\n")
     {:ok, data} = Socket.recv(socket)
     {:ok, {"220", _message}} = parse_smtp_response(data)
     Socket.ssl_client(socket)
+  end
+
+  defp try_auth(socket, extensions, options) do
+    if supports_extension?("AUTH", extensions) do
+      {:ok, _} = do_auth(socket, options) # TODO: Need to handle error case
+      {:ok, socket}
+    else
+      {:ok, socket}
+    end
+  end
+
+  defp do_auth(socket, options) do
+    username = Keyword.get(options, :username)
+    password = Keyword.get(options, :password)
+
+    auth_string = Base.encode64("\0" <> username <> "\0" <> password)
+    Socket.send(socket, ["AUTH PLAIN ", auth_string, "\r\n"])
+    {:ok, data} = Socket.recv(socket)
+    parse_smtp_response(data)
   end
 
   def send_message(socket, from, to, message) do

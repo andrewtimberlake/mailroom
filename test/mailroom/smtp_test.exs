@@ -79,4 +79,23 @@ defmodule Mailroom.SMTPTest do
     {:ok, client} = SMTP.connect(server.address, port: server.port)
     SMTP.quit(client)
   end
+
+  test "SMTP with AUTH PLAIN" do
+    server = TestServer.start
+
+    TestServer.expect(server, fn(expectations) ->
+      expectations
+      |> TestServer.on(:connect,
+                       "220 myserver.com.\r\n")
+      |> TestServer.on("EHLO #{SMTP.fqdn}\r\n",
+                       "250-myserver.com\r\n250 AUTH PLAIN\r\n")
+      |> TestServer.on("AUTH PLAIN AHVzZXJuYW1lAHBhc3N3b3Jk\r\n",
+                       "235 Authenticated\r\n")
+      |> TestServer.on("QUIT\r\n",
+                       "221 Bye\r\n")
+    end)
+
+    {:ok, client} = SMTP.connect(server.address, port: server.port, username: "username", password: "password")
+    SMTP.quit(client)
+  end
 end
