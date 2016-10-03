@@ -1,13 +1,30 @@
 defmodule Mailroom.Mixfile do
   use Mix.Project
 
+  @github_url "https://github.com/andrewtimberlake/mailroom"
+  @version "0.0.1"
+
   def project do
     [app: :mailroom,
-     version: "0.1.0",
+     name: "Mailroom",
+     version: @version,
      elixir: "~> 1.3",
      build_embedded: Mix.env == :prod,
      start_permanent: Mix.env == :prod,
-     deps: deps()]
+     deps: deps(),
+     source_url: @github_url,
+     docs: fn ->
+       [
+         source_ref: "v#{@version}",
+         canonical: "http://hexdocs.pm/mailroom",
+         main: "Mailroom",
+         source_url: @github_url,
+         extras: ["README.md"]
+       ]
+     end,
+     description: description,
+     package: package
+    ]
   end
 
   # Configuration for the OTP application
@@ -31,6 +48,21 @@ defmodule Mailroom.Mixfile do
       # Docs
       {:ex_doc, "~> 0.13.0", only: [:dev, :docs]},
       {:earmark, "~> 1.0.0", only: [:dev, :docs]},
+    ]
+  end
+
+  defp description do
+    """
+    A library for sending, receving and processing emails.
+    """
+  end
+
+  defp package do
+    [
+      maintainers: ["Andrew Timberlake"],
+      contributors: ["Andrew Timberlake"],
+      licenses: ["MIT"],
+      links: %{"Github" => @github_url}
     ]
   end
 end
