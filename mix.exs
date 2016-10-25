@@ -46,7 +46,7 @@ defmodule Mailroom.Mixfile do
   defp deps do
     [
       # Docs
-      {:ex_doc, "~> 0.13.0", only: [:dev, :docs]},
+      {:ex_doc, "~> 0.14.0", only: [:dev, :docs]},
       {:earmark, "~> 1.0.0", only: [:dev, :docs]},
     ]
   end
