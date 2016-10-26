@@ -129,10 +129,10 @@ defmodule Mailroom.IMAP do
     GenServer.reply(caller, {:ok, msg})
     {:noreply, %{state | state: :authenticated, cmd_map: Map.delete(cmd_map, :connect)}}
   end
-  defp handle_response(_socket, <<"* NO ", msg :: binary>>, %{state: :connect, cmd_map: %{connect: caller} = cmd_map} = state) do
-    GenServer.reply(caller, {:error, msg})
-    {:noreply, %{state | state: nil, cmd_map: Map.delete(cmd_map, :connect)}}
-  end
+  # defp handle_response(_socket, <<"* NO ", msg :: binary>>, %{state: :connect, cmd_map: %{connect: caller} = cmd_map} = state) do
+  #   GenServer.reply(caller, {:error, msg})
+  #   {:noreply, %{state | state: nil, cmd_map: Map.delete(cmd_map, :connect)}}
+  # end
 
   defp handle_response(_socket, <<"* OK [PERMANENTFLAGS (", msg :: binary>>, state),
     do: {:noreply, %{state | permanent_flags: parse_list(msg)}}
@@ -214,8 +214,8 @@ defmodule Mailroom.IMAP do
   end
 
   defp send_error(_socket, cmd_tag, msg, %{cmd_map: cmd_map} = state) do
-    caller = Map.get(cmd_map, cmd_tag)
-    GenServer.reply(caller, {:error, msg})
+    command = Map.get(cmd_map, cmd_tag)
+    GenServer.reply(command.caller, {:error, msg})
     {:noreply, %{state | cmd_map: Map.delete(cmd_map, cmd_tag)}}
   end
 
