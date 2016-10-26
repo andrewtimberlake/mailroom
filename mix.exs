@@ -45,6 +45,8 @@ defmodule Mailroom.Mixfile do
   # Type "mix help deps" for more examples and options
   defp deps do
     [
+      # DEV
+      {:credo, "~> 0.4.0", only: :dev},
       # Docs
       {:ex_doc, "~> 0.14.0", only: [:dev, :docs]},
       {:earmark, "~> 1.0.0", only: [:dev, :docs]},

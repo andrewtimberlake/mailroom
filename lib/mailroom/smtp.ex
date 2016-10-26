@@ -137,28 +137,28 @@ defmodule Mailroom.SMTP do
     do_auth(socket, auth_options, username, password)
   end
 
-  defp do_auth(socket, _options, nil, _password),
+  defp do_auth(_socket, _options, nil, _password),
     do: {:error, "Missing username"}
-  defp do_auth(socket, _options, _username, nil),
+  defp do_auth(_socket, _options, _username, nil),
     do: {:error, "Missing password"}
 
-  defp do_auth(socket, ["PLAIN" | tail], username, password) do
+  defp do_auth(socket, ["PLAIN" | _tail], username, password) do
     auth_string = Base.encode64("\0" <> username <> "\0" <> password)
     Socket.send(socket, ["AUTH PLAIN ", auth_string, "\r\n"])
     {:ok, data} = Socket.recv(socket)
     parse_smtp_response(data)
   end
-  defp do_auth(socket, ["LOGIN" | tail], username, password) do
+  defp do_auth(socket, ["LOGIN" | _tail], username, password) do
     Socket.send(socket, ["AUTH LOGIN\r\n"])
     # Socket.send(socket, ["AUTH PLAIN ", auth_string, "\r\n"])
     {:ok, data} = Socket.recv(socket)
     {:ok, {"334", message}} = parse_smtp_response(data)
-    "username:" = Base.decode64!(message) |> String.downcase
+    "username:" = decode_base64_lowercase(message)
     user = Base.encode64(username)
     Socket.send(socket, [user, "\r\n"])
     {:ok, data} = Socket.recv(socket)
     {:ok, {"334", message}} = parse_smtp_response(data)
-    "password:" = Base.decode64!(message) |> String.downcase
+    "password:" = decode_base64_lowercase(message)
     pass = Base.encode64(password)
     Socket.send(socket, [pass, "\r\n"])
     {:ok, data} = Socket.recv(socket)
@@ -166,6 +166,9 @@ defmodule Mailroom.SMTP do
   end
   defp do_auth(socket, [_opt | tail], username, password),
     do: do_auth(socket, tail, username, password)
+
+  defp decode_base64_lowercase(string),
+    do: string |> Base.decode64! |> String.downcase
 
   def send_message(socket, from, to, message) do
     Socket.send(socket, ["MAIL FROM: <", from, ">\r\n"])
@@ -201,7 +204,7 @@ defmodule Mailroom.SMTP do
   def fqdn do
     {:ok, name} = :inet.gethostname
     {:ok, hostent} = :inet.gethostbyname(name)
-    {:hostent, fqdn, _aliases, :inet, _, _addresses} = hostent
-    to_string(fqdn)
+    {:hostent, name, _aliases, :inet, _, _addresses} = hostent
+    to_string(name)
   end
 end
