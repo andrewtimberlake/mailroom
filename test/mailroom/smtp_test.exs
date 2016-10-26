@@ -1,5 +1,5 @@
 defmodule Mailroom.SMTPTest do
-  use ExUnit.Case
+  use ExUnit.Case, async: true
   doctest Mailroom.SMTP
 
   alias Mailroom.{SMTP,TestServer}

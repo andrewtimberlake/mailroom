@@ -2,14 +2,25 @@ defmodule Mailroom.SMTP do
   alias Mailroom.Socket
 
   def connect(server, options \\ []) do
-    port = Keyword.get(options, :port, 25)
-    {:ok, socket} = Socket.connect(server, port, options)
+    opts = parse_opts(options)
+    {:ok, socket} = Socket.connect(server, opts.port, ssl: opts.ssl, debug: opts.debug)
     with {:ok, _banner} <- read_banner(socket),
          {:ok, extensions} <- greet(socket),
          {:ok, socket, _extensions} <- try_starttls(socket, extensions),
          {:ok, socket} <- try_auth(socket, extensions, options),
       do: {:ok, socket}
   end
+
+  defp parse_opts(opts, acc \\ %{ssl: false, port: 25, debug: false})
+  defp parse_opts([], acc), do: acc
+  defp parse_opts([{:ssl, ssl} | tail], acc),
+    do: parse_opts(tail, Map.put(acc, :ssl, ssl))
+  defp parse_opts([{:port, port} | tail], acc),
+    do: parse_opts(tail, Map.put(acc, :port, port))
+  defp parse_opts([{:debug, debug} | tail], acc),
+    do: parse_opts(tail, Map.put(acc, :debug, debug))
+  defp parse_opts([_ | tail], acc),
+    do: parse_opts(tail, acc)
 
   defp read_banner(socket) do
     {:ok, line} = Socket.recv(socket)
