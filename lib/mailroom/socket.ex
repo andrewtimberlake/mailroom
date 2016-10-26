@@ -69,10 +69,10 @@ defmodule Mailroom.Socket do
       {:ok, line} = #{inspect(__MODULE__)}.recv(socket)
   """
   @spec recv(t) :: {:ok, String.t} | {:error, String.t}
-  def recv(%{debug: debug} = socket) do
+  def recv(%{debug: debug, ssl: ssl} = socket) do
     case do_recv(socket) do
       {:ok, line} ->
-        if debug, do: IO.write(["> ", line])
+        if debug, do: IO.write(["> ", tag_debug(ssl), line])
         {:ok, String.replace_suffix(line, "\r\n", "")}
       {:error, reason} -> {:error, to_string(reason)}
     end
@@ -83,6 +83,9 @@ defmodule Mailroom.Socket do
   defp do_recv(%{socket: socket, ssl: false, timeout: timeout}),
     do: :gen_tcp.recv(socket, 0, timeout)
 
+  defp tag_debug(true),  do: "[ssl] "
+  defp tag_debug(false), do: "[tcp] "
+
   @doc """
   Send data on a socket
 
@@ -91,8 +94,8 @@ defmodule Mailroom.Socket do
       :ok = #{inspect(__MODULE__)}.send(socket)
   """
   @spec send(t, String.t) :: :ok | {:error, String.t}
-  def send(%{debug: debug} = socket, data) do
-    if debug, do: IO.write(["< ", data])
+  def send(%{debug: debug, ssl: ssl} = socket, data) do
+    if debug, do: IO.write(["< ", tag_debug(ssl), data])
     case do_send(socket, data) do
       :ok -> :ok
       {:error, reason} -> {:error, to_string(reason)}
