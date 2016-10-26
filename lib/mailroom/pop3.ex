@@ -36,14 +36,32 @@ defmodule Mailroom.POP3 do
       {:ok, %#{inspect(__MODULE__)}{}}
   """
   def connect(server, username, password, options \\ []) do
-    ssl = Keyword.get(options, :ssl, false)
-    port = Keyword.get(options, :port, (if ssl, do: 995, else: 110))
-    {:ok, socket} = Socket.connect(server, port, options)
+    opts = parse_opts(options)
+    {:ok, socket} = Socket.connect(server, opts.port, ssl: opts.ssl, debug: opts.debug)
     case login(socket, username, password) do
       :ok -> {:ok, socket}
       {:error, reason} -> {:error, :authentication, reason}
     end
   end
+
+  defp parse_opts(opts, acc \\ %{ssl: false, port: nil, debug: false})
+  defp parse_opts([], acc),
+    do: set_default_port(acc)
+  defp parse_opts([{:ssl, ssl} | tail], acc),
+    do: parse_opts(tail, Map.put(acc, :ssl, ssl))
+  defp parse_opts([{:port, port} | tail], acc),
+    do: parse_opts(tail, Map.put(acc, :port, port))
+  defp parse_opts([{:debug, debug} | tail], acc),
+    do: parse_opts(tail, Map.put(acc, :debug, debug))
+  defp parse_opts([_ | tail], acc),
+    do: parse_opts(tail, acc)
+
+  defp set_default_port(%{port: nil, ssl: false} = opts),
+    do: %{opts | port: 110}
+  defp set_default_port(%{port: nil, ssl: true} = opts),
+    do: %{opts | port: 995}
+  defp set_default_port(opts),
+    do: opts
 
   @doc """
   Sends the QUIT command and closes the connection
