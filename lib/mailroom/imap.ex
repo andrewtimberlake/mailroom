@@ -4,7 +4,7 @@ defmodule Mailroom.IMAP do
 
   defmodule State do
     @moduledoc false
-    defstruct socket: nil, state: nil, ssl: false, debug: false, cmd_map: %{}, cmd_number: 1, capability: [], flags: [], permanent_flags: [], uid_validity: nil, uid_next: nil, highest_mod_seq: nil, recent: 0, exists: 0, temp: nil
+    defstruct socket: nil, state: :unauthenticated, ssl: false, debug: false, cmd_map: %{}, cmd_number: 1, capability: [], flags: [], permanent_flags: [], uid_validity: nil, uid_next: nil, highest_mod_seq: nil, recent: 0, exists: 0, temp: nil
   end
 
   @moduledoc """
@@ -84,26 +84,29 @@ defmodule Mailroom.IMAP do
   def recent_count(pid),
     do: GenServer.call(pid, :recent_count)
 
+  def state(pid),
+    do: GenServer.call(pid, :state)
+
   def init(opts) do
     {:ok, %{debug: opts.debug, ssl: opts.ssl}}
   end
 
   def handle_call({:connect, server, port}, from, state) do
     {:ok, socket} = Socket.connect(server, port, ssl: state.ssl, debug: state.debug, active: true)
-    {:noreply, %State{socket: socket, state: :connect, debug: state.debug, ssl: state.ssl, cmd_map: %{connect: from}}}
+    {:noreply, %State{socket: socket, state: :unauthenticated, debug: state.debug, ssl: state.ssl, cmd_map: %{connect: from}}}
   end
-  def handle_call({:login, username, password}, from, %{socket: socket, capability: capability} = state) do
+  def handle_call({:login, username, password}, from, %{capability: capability} = state) do
     if Enum.member?(capability, "STARTTLS") do
-      {:noreply, send_command(socket, from, "STARTTLS", %{state | temp: %{username: username, password: password}})}
+      {:noreply, send_command(from, "STARTTLS", %{state | temp: %{username: username, password: password}})}
     else
-      {:noreply, send_command(socket, from, ["LOGIN", " ", username, " ", password], state)}
+      {:noreply, send_command(from, ["LOGIN", " ", username, " ", password], state)}
     end
   end
 
   def handle_call({:select, :inbox}, from, state),
     do: handle_call({:select, "INBOX"}, from, state)
-  def handle_call({:select, mailbox}, from, %{socket: socket} = state),
-    do: {:noreply, send_command(socket, from, ["SELECT", " ", mailbox], state)}
+  def handle_call({:select, mailbox}, from, state),
+    do: {:noreply, send_command(from, ["SELECT", " ", mailbox], state)}
 
   def handle_call(:email_count, _from, %{exists: exists} = state),
     do: {:reply, exists, state}
@@ -111,54 +114,57 @@ defmodule Mailroom.IMAP do
   def handle_call(:recent_count, _from, %{recent: recent} = state),
     do: {:reply, recent, state}
 
-  def handle_info({:ssl, socket, msg}, state) do
+  def handle_call(:state, _from, %{state: connection_state} = state),
+    do: {:reply, connection_state, state}
+
+  def handle_info({:ssl, _socket, msg}, state) do
     if state.debug, do: IO.write(["> [ssl] ", msg])
-    handle_response(socket, msg, state)
+    handle_response(msg, state)
   end
-  def handle_info({:tcp, socket, msg}, state) do
+  def handle_info({:tcp, _socket, msg}, state) do
     if state.debug, do: IO.write(["> [tcp] ", msg])
-    handle_response(socket, msg, state)
+    handle_response(msg, state)
   end
   def handle_info(msg, state) do
     Logger.info("handle_info(#{inspect(msg)}, #{inspect(state)})")
     {:noreply, state}
   end
 
-  defp handle_response(_socket, <<"* OK ", msg :: binary>>, %{state: :connect, cmd_map: %{connect: caller} = cmd_map} = state) do
+  defp handle_response(<<"* OK ", msg :: binary>>, %{state: :unauthenticated, cmd_map: %{connect: caller} = cmd_map} = state) do
     state = process_connection_message(msg, state)
     GenServer.reply(caller, {:ok, msg})
-    {:noreply, %{state | state: :authenticated, cmd_map: Map.delete(cmd_map, :connect)}}
+    {:noreply, %{state | cmd_map: Map.delete(cmd_map, :connect)}}
   end
-  # defp handle_response(_socket, <<"* NO ", msg :: binary>>, %{state: :connect, cmd_map: %{connect: caller} = cmd_map} = state) do
-  #   GenServer.reply(caller, {:error, msg})
-  #   {:noreply, %{state | state: nil, cmd_map: Map.delete(cmd_map, :connect)}}
-  # end
 
-  defp handle_response(_socket, <<"* OK [PERMANENTFLAGS (", msg :: binary>>, state),
+  defp handle_response(<<"* OK [PERMANENTFLAGS (", msg :: binary>>, state),
     do: {:noreply, %{state | permanent_flags: parse_list(msg)}}
-  defp handle_response(_socket, <<"* OK [UIDVALIDITY ", msg :: binary>>, state),
+  defp handle_response(<<"* OK [UIDVALIDITY ", msg :: binary>>, state),
     do: {:noreply, %{state | uid_validity: parse_number(msg)}}
-  defp handle_response(_socket, <<"* OK [UIDNEXT ", msg :: binary>>, state),
+  defp handle_response(<<"* OK [UIDNEXT ", msg :: binary>>, state),
     do: {:noreply, %{state | uid_next: parse_number(msg)}}
-  defp handle_response(_socket, <<"* OK [HIGHESTMODSEQ ", msg :: binary>>, state),
+  defp handle_response(<<"* OK [HIGHESTMODSEQ ", msg :: binary>>, state),
     do: {:noreply, %{state | highest_mod_seq: parse_number(msg)}}
-  defp handle_response(_socket, <<"* OK [CAPABILITY ", msg :: binary>>, state),
+  defp handle_response(<<"* OK [CAPABILITY ", msg :: binary>>, state),
     do: {:noreply, %{state | capability: parse_list(msg)}}
-  defp handle_response(_socket, <<"* CAPABILITY ", msg :: binary>>, state),
+  defp handle_response(<<"* CAPABILITY ", msg :: binary>>, state),
     do: {:noreply, %{state | capability: parse_list(msg)}}
-  defp handle_response(_socket, <<"* FLAGS (", msg :: binary>>, state),
+  defp handle_response(<<"* FLAGS (", msg :: binary>>, state),
     do: {:noreply, %{state | flags: parse_list(msg)}}
-  defp handle_response(_socket, <<"* ", msg :: binary>>, state) do
+  defp handle_response(<<"* BYE ", _msg :: binary>>, state),
+    do: {:noreply, state}
+  defp handle_response(<<"* ", msg :: binary>>, state) do
     state = case String.split(String.strip(msg), " ") do
               [number, "EXISTS"] -> %{state | exists: String.to_integer(number)}
               [number, "RECENT"] -> %{state | recent: String.to_integer(number)}
-              _ -> Logger.warn("Unknown incedental command: #{msg}")
+              _ ->
+                Logger.warn("Unknown incedental command: #{msg}")
+                state
             end
     {:noreply, state}
   end
-  defp handle_response(socket, <<cmd_tag :: binary-size(4), " ", msg :: binary>>, state),
-    do: handle_tagged_response(socket, cmd_tag, msg, state)
-  defp handle_response(_socket, msg, state) do
+  defp handle_response(<<cmd_tag :: binary-size(4), " ", msg :: binary>>, state),
+    do: handle_tagged_response(cmd_tag, msg, state)
+  defp handle_response(msg, state) do
     Logger.warn("handle_response(socket, #{inspect(msg)}, #{inspect(state)})")
     {:noreply, state}
   end
@@ -167,56 +173,61 @@ defmodule Mailroom.IMAP do
     do: %{state | capability: parse_list(msg)}
   defp process_connection_message(_msg, state), do: state
 
-  defp handle_tagged_response(socket, cmd_tag, <<"OK ", msg :: binary>>, %{cmd_map: cmd_map} = state),
-    do: process_command_response(socket, cmd_tag, cmd_map[cmd_tag], msg, state)
-  defp handle_tagged_response(socket, cmd_tag, <<"OK ", msg :: binary>>, state),
-    do: send_reply(socket, cmd_tag, String.strip(msg), state)
-  defp handle_tagged_response(socket, cmd_tag, <<"NO ", msg :: binary>>, state),
-    do: send_error(socket, cmd_tag, String.strip(msg), state)
-  defp handle_tagged_response(_socket, _cmd_tag, <<"BAD ", msg :: binary>>, _state),
+  defp handle_tagged_response(cmd_tag, <<"OK ", msg :: binary>>, %{cmd_map: cmd_map} = state),
+    do: process_command_response(cmd_tag, cmd_map[cmd_tag], msg, state)
+  # defp handle_tagged_response(cmd_tag, <<"OK ", msg :: binary>>, state),
+  #   do: send_reply(cmd_tag, String.strip(msg), state)
+  defp handle_tagged_response(cmd_tag, <<"NO ", msg :: binary>>, %{cmd_map: cmd_map} = state),
+    do: process_command_error(cmd_tag, cmd_map[cmd_tag], msg, state)
+  defp handle_tagged_response(_cmd_tag, <<"BAD ", msg :: binary>>, _state),
     do: raise "Bad command #{msg}"
 
-  defp process_command_response(_socket, cmd_tag, %{command: "STARTTLS", caller: caller}, _msg, %{socket: socket, cmd_map: cmd_map, temp: %{username: username, password: password}} = state) do
+  defp process_command_response(cmd_tag, %{command: "STARTTLS", caller: caller}, _msg, %{socket: socket, cmd_map: cmd_map, temp: %{username: username, password: password}} = state) do
     {:ok, ssl_socket} = Socket.ssl_client(socket)
     state = %{state | cmd_map: Map.delete(cmd_map, cmd_tag)}
     state = %{state | socket: ssl_socket, capability: nil}
-    {:noreply, send_command(ssl_socket, caller, ["LOGIN", " ", username, " ", password], %{state | temp: nil})}
+    {:noreply, send_command(caller, ["LOGIN", " ", username, " ", password], %{state | temp: nil})}
   end
-  defp process_command_response(_socket, cmd_tag, %{command: "LOGIN", caller: caller}, msg, %{cmd_map: cmd_map} = state) do
+  defp process_command_response(cmd_tag, %{command: "LOGIN", caller: caller}, msg, state) do
     state = remove_command_from_state(state, cmd_tag)
     state = process_connection_message(msg, state)
-    GenServer.reply(caller, {:ok, msg})
-    {:noreply, %{state | state: :authenticated, cmd_map: Map.delete(cmd_map, :connect)}}
+    send_reply(caller, msg, %{state | state: :authenticated})
   end
-  defp process_command_response(_socket, cmd_tag, %{command: "SELECT", caller: caller}, msg, %{cmd_map: cmd_map} = state) do
+  defp process_command_response(cmd_tag, %{command: "LOGOUT", caller: caller}, _msg, %{temp: {:error, error}} = state) do
     state = remove_command_from_state(state, cmd_tag)
-    GenServer.reply(caller, {:ok, msg})
-    {:noreply, %{state | state: :selected, cmd_map: Map.delete(cmd_map, :connect)}}
+    send_error(caller, error, state)
   end
-  defp process_command_response(_socket, cmd_tag, %{command: command}, msg, state) do
+  defp process_command_response(cmd_tag, %{command: "SELECT", caller: caller}, msg, state),
+    do: send_reply(caller, msg, %{remove_command_from_state(state, cmd_tag) | state: :selected})
+  defp process_command_response(cmd_tag, %{command: command}, msg, state) do
     Logger.warn("Command not processed: #{cmd_tag} OK #{msg} - #{command} - #{inspect(state)}")
     {:noreply, state}
   end
 
+  defp process_command_error(cmd_tag, %{command: "LOGIN", caller: caller}, msg, state) do
+    state = remove_command_from_state(state, cmd_tag)
+    {:noreply, send_command(caller, "LOGOUT", %{state | temp: {:error, msg}})}
+  end
+  defp process_command_error(cmd_tag, %{caller: caller}, msg, state),
+    do: send_error(caller, msg, remove_command_from_state(state, cmd_tag))
+
   defp remove_command_from_state(%{cmd_map: cmd_map} = state, cmd_tag),
     do: %{state | cmd_map: Map.delete(cmd_map, cmd_tag)}
 
-  defp send_command(socket, caller, command, %{cmd_number: cmd_number, cmd_map: cmd_map} = state) do
+  defp send_command(caller, command, %{socket: socket, cmd_number: cmd_number, cmd_map: cmd_map} = state) do
     cmd_tag = "A#{String.pad_leading(Integer.to_string(cmd_number), 3, "0")}"
     :ok = Socket.send(socket, [cmd_tag, " ", command, "\r\n"])
     %{state | cmd_number: cmd_number + 1, cmd_map: Map.put_new(cmd_map, cmd_tag, %{command: hd(List.wrap(command)), caller: caller})}
   end
 
-  defp send_reply(_socket, cmd_tag, msg, %{cmd_map: cmd_map} = state) do
-    caller = Map.get(cmd_map, cmd_tag)
+  defp send_reply(caller, msg, state) do
     GenServer.reply(caller, {:ok, msg})
-    {:noreply, %{state | cmd_map: Map.delete(cmd_map, cmd_tag)}}
+    {:noreply, state}
   end
 
-  defp send_error(_socket, cmd_tag, msg, %{cmd_map: cmd_map} = state) do
-    command = Map.get(cmd_map, cmd_tag)
-    GenServer.reply(command.caller, {:error, msg})
-    {:noreply, %{state | cmd_map: Map.delete(cmd_map, cmd_tag)}}
+  defp send_error(caller, err_msg, state) do
+    GenServer.reply(caller, {:error, String.strip(err_msg)})
+    {:noreply, state}
   end
 
   defp parse_list(string, temp \\ "", acc \\ [])

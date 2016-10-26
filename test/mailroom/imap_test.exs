@@ -18,10 +18,26 @@ defmodule Mailroom.IMAPTest do
             "A002 OK test@example.com authenticated (Success)\r\n"])
     end)
 
-    assert {:ok, _client} = IMAP.connect(server.address, "test@example.com", "P@55w0rD", port: server.port, ssl: false, debug: @debug)
+    assert {:ok, client} = IMAP.connect(server.address, "test@example.com", "P@55w0rD", port: server.port, ssl: false, debug: @debug)
+    assert IMAP.state(client) == :authenticated
   end
 
-  test "login" do
+  test "LOGIN with invalid credentials" do
+    server = TestServer.start(ssl: true)
+    TestServer.expect(server, fn(expectations) ->
+      expectations
+      |> TestServer.on(:connect,    "* OK IMAP ready\r\n")
+      |> TestServer.on("A001 LOGIN test@example.com wrong\r\n", [
+            "A001 NO [AUTHENTICATIONFAILED] Authentication failed\r\n"])
+      |> TestServer.on("A002 LOGOUT\r\n", [
+            "* BYE Logging off now\r\n",
+            "A002 OK We're done\r\n"])
+    end)
+
+    assert {:error, :authentication, "[AUTHENTICATIONFAILED] Authentication failed"} = IMAP.connect(server.address, "test@example.com", "wrong", port: server.port, ssl: true, debug: @debug)
+  end
+
+  test "LOGIN" do
     server = TestServer.start(ssl: true)
     TestServer.expect(server, fn(expectations) ->
       expectations
@@ -38,22 +54,11 @@ defmodule Mailroom.IMAPTest do
     end)
 
     assert {:ok, client} = IMAP.connect(server.address, "test@example.com", "P@55w0rD", port: server.port, ssl: true, debug: @debug)
+    assert IMAP.state(client) == :authenticated
     client
     |> IMAP.select(:inbox)
 
     assert IMAP.email_count(client) == 1
     assert IMAP.recent_count(client) == 0
-  end
-
-  test "login with invalid credentials" do
-    server = TestServer.start(ssl: true)
-    TestServer.expect(server, fn(expectations) ->
-      expectations
-      |> TestServer.on(:connect,    "* OK IMAP ready\r\n")
-      |> TestServer.on("A001 LOGIN test@example.com wrong\r\n", [
-            "A001 NO [AUTHENTICATIONFAILED] Authentication failed\r\n"])
-    end)
-
-    assert {:error, :authentication, "[AUTHENTICATIONFAILED] Authentication failed"} = IMAP.connect(server.address, "test@example.com", "wrong", port: server.port, ssl: true, debug: @debug)
   end
 end
