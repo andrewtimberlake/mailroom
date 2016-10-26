@@ -13,10 +13,12 @@ defmodule Mailroom.Socket do
       #{inspect(__MODULE__)}.close(socket)
       #{inspect(__MODULE__)}.close(ssl_socket)
   """
-  @type t :: %__MODULE__{}
-  defstruct socket: nil, ssl: false, timeout: nil, debug: false
 
   @timeout 15_000
+
+  @type t :: %__MODULE__{}
+  defstruct socket: nil, ssl: false, timeout: @timeout, debug: false
+
   @doc """
   Connect to a TCP `server` on `port`
 
@@ -31,20 +33,28 @@ defmodule Mailroom.Socket do
       {:ok, socket} = #{inspect(__MODULE__)}.connect("localhost", 110, ssl: true)
   """
   @spec connect(String.t, integer, Keyword.t) :: {:ok, t} | {:error, String.t}
-  @connect_opts [:binary, packet: :line, reuseaddr: true, active: false, keepalive: true]
+  @connect_opts [packet: :line, reuseaddr: true, active: false, keepalive: true]
   @ssl_connect_opts [depth: 0]
   def connect(server, port, opts \\ []) do
-    ssl = Keyword.get(opts, :ssl, false)
-    timeout = Keyword.get(opts, :timeout, @timeout)
-    debug = Keyword.get(opts, :debug, false)
-    if debug, do: IO.puts("[connecting]")
+    {state, opts} = parse_opts(opts)
+    if state.debug, do: IO.puts("[connecting]")
 
+    connect_opts = Keyword.merge(@connect_opts, opts)
     addr = String.to_charlist(server)
-    case do_connect(addr, ssl, port, @connect_opts, timeout) do
-      {:ok, socket} -> {:ok, %__MODULE__{socket: socket, ssl: ssl, timeout: timeout, debug: debug}}
+    case do_connect(addr, state.ssl, port, [:binary | connect_opts], state.timeout) do
+      {:ok, socket} -> {:ok, %{state | socket: socket}}
       {:error, reason} -> {:error, to_string(reason)}
     end
   end
+
+  defp parse_opts(opts, state \\ %__MODULE__{}, acc \\ [])
+  defp parse_opts([], state, acc), do: {state, acc}
+  defp parse_opts([{:ssl, ssl} | tail], state, acc),
+    do: parse_opts(tail, %{state | ssl: ssl}, acc)
+  defp parse_opts([{:debug, debug} | tail], state, acc),
+    do: parse_opts(tail, %{state | debug: debug}, acc)
+  defp parse_opts([opt | tail], state, acc),
+    do: parse_opts(tail, state, [opt | acc])
 
   defp do_connect(addr, true, port, opts, timeout),
     do: :ssl.connect(addr, port, opts, timeout)
