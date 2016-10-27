@@ -229,8 +229,8 @@ defmodule Mailroom.IMAP do
     mailbox = parse_string_only(rest)
     {:noreply, %{state | temp: [{mailbox, delimiter, flags} | List.wrap(temp)]}}
   end
-  defp handle_response(<<"* STATUS ", rest :: binary>>, %{temp: temp} = state) do
-    {mailbox, <<rest :: binary>>} = parse_string(rest)
+  defp handle_response(<<"* STATUS ", rest :: binary>>, state) do
+    {_mailbox, <<rest :: binary>>} = parse_string(rest)
     response = parse_list_only(rest)
     response = list_to_status_items(response)
     {:noreply, %{state | temp: response}}
@@ -243,7 +243,7 @@ defmodule Mailroom.IMAP do
     state = case String.split(String.strip(msg), " ", parts: 3) do
               [number, "EXISTS"] -> %{state | exists: String.to_integer(number)}
               [number, "RECENT"] -> %{state | recent: String.to_integer(number)}
-              [number, "FETCH", rest] -> %{state | temp: [parse_fetch_response(rest) | state.temp]}
+              [number, "FETCH", rest] -> %{state | temp: [{String.to_integer(number), parse_fetch_response(rest)} | state.temp]}
               _ ->
                 Logger.warn("Unknown untagged response: #{msg}")
                 state
@@ -302,11 +302,11 @@ defmodule Mailroom.IMAP do
     do: send_reply(caller, msg, %{remove_command_from_state(state, cmd_tag) | state: :selected, mailbox: parse_mailbox({temp, msg})})
   defp process_command_response(cmd_tag, %{command: "EXAMINE", caller: caller}, msg, %{temp: temp} = state),
     do: send_reply(caller, msg, %{remove_command_from_state(state, cmd_tag) | state: :selected, mailbox: parse_mailbox({temp, msg})})
-  defp process_command_response(cmd_tag, %{command: "LIST", caller: caller}, msg, %{temp: temp} = state) when is_list(temp),
+  defp process_command_response(cmd_tag, %{command: "LIST", caller: caller}, _msg, %{temp: temp} = state) when is_list(temp),
     do: send_reply(caller, Enum.reverse(temp), remove_command_from_state(state, cmd_tag))
   defp process_command_response(cmd_tag, %{command: "STATUS", caller: caller}, _msg, %{temp: temp} = state),
     do: send_reply(caller, temp, remove_command_from_state(state, cmd_tag))
-  defp process_command_response(cmd_tag, %{command: "FETCH", caller: caller}, msg, %{temp: temp} = state),
+  defp process_command_response(cmd_tag, %{command: "FETCH", caller: caller}, _msg, %{temp: temp} = state),
     do: send_reply(caller, temp, remove_command_from_state(state, cmd_tag))
   defp process_command_response(cmd_tag, %{command: "CAPABILITY", caller: caller}, msg, %{temp: temp} = state),
     do: send_reply(caller, temp || msg, %{remove_command_from_state(state, cmd_tag) | state: :authenticated, temp: nil})

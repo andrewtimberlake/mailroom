@@ -78,7 +78,7 @@ defmodule Mailroom.IMAPTest do
             "A002 OK CAPABILITY complete\r\n"])
     end)
 
-    assert {:ok, client} = IMAP.connect(server.address, "test@example.com", "P@55w0rD", port: server.port, ssl: true, debug: @debug)
+    assert {:ok, _client} = IMAP.connect(server.address, "test@example.com", "P@55w0rD", port: server.port, ssl: true, debug: @debug)
   end
 
   test "SELECT" do
@@ -242,7 +242,7 @@ defmodule Mailroom.IMAPTest do
       client
       |> IMAP.select(:inbox)
       |> IMAP.fetch(1, :uid)
-    assert msgs == [%{uid: 46}]
+    assert msgs == [{1, %{uid: 46}}]
     IMAP.logout(client)
   end
 
@@ -277,8 +277,8 @@ defmodule Mailroom.IMAPTest do
     end)
     |> IMAP.logout
 
-    assert_received %{uid: 46}
-    assert_received %{uid: 47}
+    assert_received {1, %{uid: 46}}
+    assert_received {2, %{uid: 47}}
   end
 
   test "LOGOUT" do
