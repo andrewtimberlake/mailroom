@@ -76,11 +76,39 @@ defmodule Mailroom.IMAP.Utils do
     do: items_to_list(list, ["("])
   def items_to_list([head | tail], acc),
     do: items_to_list(tail, [" ", item_to_string(head) | acc])
+  def items_to_list(non_list, acc),
+    do: items_to_list(List.wrap(non_list), acc)
 
   defp item_to_string(string) when is_binary(string), do: string
-  defp item_to_string(atom) when is_atom(atom), do: atom |> Atom.to_string |> String.upcase
-
-  defp item_to_atom(string) when is_binary(string), do: string |> String.downcase |> String.to_existing_atom
+  [
+    # STATUS
+    messages: "MESSAGES",
+    recent: "RECENT",
+    unseen: "UNSEEN",
+    uid_next: "UIDNEXT",
+    uid_validity: "UIDVALIDITY",
+    # FETCH
+    all: "ALL",
+    answered: "ANSWERED",
+    fast: "FAST",
+    full: "FULL",
+    body: "BODY",
+    # "BODY[<section>]<<partial>>",
+    # "BODY.PEEK[<section>]<<partial>>",
+    body_structure: "BODYSTRUCTURE",
+    envelope: "ENVELOPE",
+    flags: "FLAGS",
+    internal_date: "INTERNALDATE",
+    rfc822: "RFC822",
+    rfc822_header: "RFC822.HEADER",
+    rfc822_size: "RFC822.SIZE",
+    rfc822_text: "RFC822.TEXT",
+    uid: "UID",
+  ]
+  |> Enum.each(fn({atom, string}) ->
+    defp item_to_string(unquote(atom)), do: unquote(string)
+    defp item_to_atom(unquote(string)), do: unquote(atom)
+  end)
 
   def list_to_status_items(list, acc \\ %{})
   def list_to_status_items([], acc), do: acc

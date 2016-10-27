@@ -78,7 +78,7 @@ defmodule Mailroom.IMAP do
     do: GenServer.call(pid, {:login, username, password})
 
   def select(pid, mailbox_name),
-    do: GenServer.call(pid, {:select, mailbox_name})
+    do: GenServer.call(pid, {:select, mailbox_name}) && pid
 
   def examine(pid, mailbox_name),
     do: GenServer.call(pid, {:examine, mailbox_name})
@@ -88,6 +88,26 @@ defmodule Mailroom.IMAP do
 
   def status(pid, mailbox_name, items),
     do: GenServer.call(pid, {:status, mailbox_name, items})
+
+  @doc ~S"""
+  Fetches the items for the specified message or range of messages
+
+  ## Examples:
+
+      > IMAP.fetch(client, 1, [:uid])
+      #…
+      > IMAP.fetch(client, 1..3, [:fast, :uid])
+      #…
+  """
+  def fetch(pid, number_or_range, items_list, func \\ nil) do
+    {:ok, list} = GenServer.call(pid, {:fetch, number_or_range, items_list})
+    if func do
+      Enum.each(list, func)
+      pid
+    else
+      {:ok, list}
+    end
+  end
 
   def close(pid),
     do: GenServer.call(pid, :close)
@@ -141,6 +161,13 @@ defmodule Mailroom.IMAP do
 
   def handle_call({:status, mailbox_name, items}, from, state),
     do: {:noreply, send_command(from, ["STATUS", " ", quote_string(mailbox_name), " ", items_to_list(items)], state)}
+
+  def handle_call({:fetch, sequence, items}, from, state) when is_integer(sequence),
+    do: handle_call({:fetch, Integer.to_string(sequence), items}, from, state)
+  def handle_call({:fetch, %Range{first: first, last: last}, items}, from, state),
+    do: handle_call({:fetch, [Integer.to_string(first), ":", Integer.to_string(last)], items}, from, state)
+  def handle_call({:fetch, sequence, items}, from, state),
+    do: {:noreply, send_command(from, ["FETCH", " ", sequence, " ", items_to_list(items)], %{state | temp: []})}
 
   def handle_call(:close, from, state),
     do: {:noreply, send_command(from, "CLOSE", state)}
@@ -213,9 +240,10 @@ defmodule Mailroom.IMAP do
   defp handle_response(<<"* BYE ", _msg :: binary>>, state),
     do: {:noreply, state}
   defp handle_response(<<"* ", msg :: binary>>, state) do
-    state = case String.split(String.strip(msg), " ") do
+    state = case String.split(String.strip(msg), " ", parts: 3) do
               [number, "EXISTS"] -> %{state | exists: String.to_integer(number)}
               [number, "RECENT"] -> %{state | recent: String.to_integer(number)}
+              [number, "FETCH", rest] -> %{state | temp: [parse_fetch_response(rest) | state.temp]}
               _ ->
                 Logger.warn("Unknown untagged response: #{msg}")
                 state
@@ -227,6 +255,12 @@ defmodule Mailroom.IMAP do
   defp handle_response(msg, state) do
     Logger.warn("handle_response(socket, #{inspect(msg)}, #{inspect(state)})")
     {:noreply, state}
+  end
+
+  defp parse_fetch_response(string) do
+    string
+    |> parse_list_only
+    |> list_to_status_items
   end
 
   defp process_connection_message(<<"[CAPABILITY ", msg :: binary>>, state),
@@ -270,7 +304,9 @@ defmodule Mailroom.IMAP do
     do: send_reply(caller, msg, %{remove_command_from_state(state, cmd_tag) | state: :selected, mailbox: parse_mailbox({temp, msg})})
   defp process_command_response(cmd_tag, %{command: "LIST", caller: caller}, msg, %{temp: temp} = state) when is_list(temp),
     do: send_reply(caller, Enum.reverse(temp), remove_command_from_state(state, cmd_tag))
-  defp process_command_response(cmd_tag, %{command: "STATUS", caller: caller}, msg, %{temp: temp} = state),
+  defp process_command_response(cmd_tag, %{command: "STATUS", caller: caller}, _msg, %{temp: temp} = state),
+    do: send_reply(caller, temp, remove_command_from_state(state, cmd_tag))
+  defp process_command_response(cmd_tag, %{command: "FETCH", caller: caller}, msg, %{temp: temp} = state),
     do: send_reply(caller, temp, remove_command_from_state(state, cmd_tag))
   defp process_command_response(cmd_tag, %{command: "CAPABILITY", caller: caller}, msg, %{temp: temp} = state),
     do: send_reply(caller, temp || msg, %{remove_command_from_state(state, cmd_tag) | state: :authenticated, temp: nil})

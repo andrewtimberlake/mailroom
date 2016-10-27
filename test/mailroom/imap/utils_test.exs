@@ -54,6 +54,7 @@ defmodule Mailroom.IMAP.UtilsTest do
   end
 
   test "items_to_list/1" do
+    assert items_to_list("MESSAGES") == ["(", "MESSAGES", ")"]
     assert items_to_list(["MESSAGES", "RECENT"]) == ["(", "MESSAGES", " ", "RECENT", ")"]
     assert items_to_list([:messages, :recent]) == ["(", "MESSAGES", " ", "RECENT", ")"]
   end
