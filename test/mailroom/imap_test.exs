@@ -13,7 +13,7 @@ defmodule Mailroom.IMAPTest do
       |> TestServer.on(:connect,    "* OK [CAPABILITY IMAPrev4 STARTTLS]\r\n")
       |> TestServer.on("A001 STARTTLS\r\n", [
             "A001 OK Begin TLS\r\n"], ssl: true)
-      |> TestServer.on("A002 LOGIN test@example.com P@55w0rD\r\n", [
+      |> TestServer.on("A002 LOGIN \"test@example.com\" \"P@55w0rD\"\r\n", [
             "* CAPABILITY (IMAPrev4)\r\n",
             "A002 OK test@example.com authenticated (Success)\r\n"])
     end)
@@ -27,7 +27,7 @@ defmodule Mailroom.IMAPTest do
     TestServer.expect(server, fn(expectations) ->
       expectations
       |> TestServer.on(:connect,    "* OK IMAP ready\r\n")
-      |> TestServer.on("A001 LOGIN test@example.com wrong\r\n", [
+      |> TestServer.on("A001 LOGIN \"test@example.com\" \"wrong\"\r\n", [
             "A001 NO [AUTHENTICATIONFAILED] Authentication failed\r\n"])
       |> TestServer.on("A002 LOGOUT\r\n", [
             "* BYE Logging off now\r\n",
@@ -37,12 +37,27 @@ defmodule Mailroom.IMAPTest do
     assert {:error, :authentication, "[AUTHENTICATIONFAILED] Authentication failed"} = IMAP.connect(server.address, "test@example.com", "wrong", port: server.port, ssl: true, debug: @debug)
   end
 
+  test "LOGIN with interesting characters" do
+    server = TestServer.start(ssl: true)
+    TestServer.expect(server, fn(expectations) ->
+      expectations
+      |> TestServer.on(:connect,    "* OK IMAP ready\r\n")
+      |> TestServer.on("A001 LOGIN \"test@example.com\" \"p!@#$%^&*()\\\"\"\r\n", [
+            "A001 NO [AUTHENTICATIONFAILED] Authentication failed\r\n"])
+      |> TestServer.on("A002 LOGOUT\r\n", [
+            "* BYE Logging off now\r\n",
+            "A002 OK We're done\r\n"])
+    end)
+
+    assert {:error, :authentication, "[AUTHENTICATIONFAILED] Authentication failed"} = IMAP.connect(server.address, "test@example.com", "p!@#$%^&*()\"", port: server.port, ssl: true, debug: @debug)
+  end
+
   test "LOGIN" do
     server = TestServer.start(ssl: true)
     TestServer.expect(server, fn(expectations) ->
       expectations
       |> TestServer.on(:connect,    "* OK IMAP ready\r\n")
-      |> TestServer.on("A001 LOGIN test@example.com P@55w0rD\r\n", [
+      |> TestServer.on("A001 LOGIN \"test@example.com\" \"P@55w0rD\"\r\n", [
             "* CAPABILITY (IMAPrev4)\r\n",
             "A001 OK test@example.com authenticated (Success)\r\n"])
     end)
@@ -56,7 +71,7 @@ defmodule Mailroom.IMAPTest do
     TestServer.expect(server, fn(expectations) ->
       expectations
       |> TestServer.on(:connect,    "* OK IMAP ready\r\n")
-      |> TestServer.on("A001 LOGIN test@example.com P@55w0rD\r\n", [
+      |> TestServer.on("A001 LOGIN \"test@example.com\" \"P@55w0rD\"\r\n", [
             "A001 OK test@example.com authenticated (Success)\r\n"])
       |> TestServer.on("A002 CAPABILITY\r\n",    [
             "* CAPABILITY IMAP4rev1 LITERAL+ ENABLE IDLE NAMESPACE UIDPLUS QUOTA\r\n",
@@ -71,7 +86,7 @@ defmodule Mailroom.IMAPTest do
     TestServer.expect(server, fn(expectations) ->
       expectations
       |> TestServer.on(:connect,    "* OK IMAP ready\r\n")
-      |> TestServer.on("A001 LOGIN test@example.com P@55w0rD\r\n", [
+      |> TestServer.on("A001 LOGIN \"test@example.com\" \"P@55w0rD\"\r\n", [
             "* CAPABILITY (IMAPrev4)\r\n",
             "A001 OK test@example.com authenticated (Success)\r\n"])
       |> TestServer.on("A002 SELECT INBOX\r\n",    [
@@ -96,7 +111,7 @@ defmodule Mailroom.IMAPTest do
     TestServer.expect(server, fn(expectations) ->
       expectations
       |> TestServer.on(:connect,    "* OK IMAP ready\r\n")
-      |> TestServer.on("A001 LOGIN test@example.com P@55w0rD\r\n", [
+      |> TestServer.on("A001 LOGIN \"test@example.com\" \"P@55w0rD\"\r\n", [
             "* CAPABILITY (IMAPrev4)\r\n",
             "A001 OK test@example.com authenticated (Success)\r\n"])
       |> TestServer.on("A002 SELECT INBOX\r\n",    [
@@ -121,7 +136,7 @@ defmodule Mailroom.IMAPTest do
     TestServer.expect(server, fn(expectations) ->
       expectations
       |> TestServer.on(:connect,    "* OK IMAP ready\r\n")
-      |> TestServer.on("A001 LOGIN test@example.com P@55w0rD\r\n", [
+      |> TestServer.on("A001 LOGIN \"test@example.com\" \"P@55w0rD\"\r\n", [
             "* CAPABILITY (IMAPrev4)\r\n",
             "A001 OK test@example.com authenticated (Success)\r\n"])
       |> TestServer.on("A002 SELECT INBOX\r\n",    [

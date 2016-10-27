@@ -49,4 +49,10 @@ defmodule Mailroom.IMAP.UtilsTest do
       assert parse_number("352841 more data") == 352841
     end
   end
+
+  test "quote_string/1" do
+    assert quote_string("string") == "\"string\""
+    assert quote_string("str ing") == "\"str ing\""
+    assert quote_string("str\"ing") == "\"str\\\"ing\""
+  end
 end

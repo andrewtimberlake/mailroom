@@ -107,7 +107,7 @@ defmodule Mailroom.IMAP do
     if Enum.member?(capability, "STARTTLS") do
       {:noreply, send_command(from, "STARTTLS", %{state | temp: %{username: username, password: password}})}
     else
-      {:noreply, send_command(from, ["LOGIN", " ", username, " ", password], state)}
+      {:noreply, send_command(from, ["LOGIN", " ", quote_string(username), " ", quote_string(password)], state)}
     end
   end
 
@@ -200,7 +200,7 @@ defmodule Mailroom.IMAP do
     {:ok, ssl_socket} = Socket.ssl_client(socket)
     state = %{state | cmd_map: Map.delete(cmd_map, cmd_tag)}
     state = %{state | socket: ssl_socket, capability: nil}
-    {:noreply, send_command(caller, ["LOGIN", " ", username, " ", password], %{state | temp: nil})}
+    {:noreply, send_command(caller, ["LOGIN", " ", quote_string(username), " ", quote_string(password)], %{state | temp: nil})}
   end
   defp process_command_response(cmd_tag, %{command: "LOGIN", caller: caller}, msg, %{capability: capability} = state) do
     state = remove_command_from_state(state, cmd_tag)

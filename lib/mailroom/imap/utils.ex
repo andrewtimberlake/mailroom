@@ -52,4 +52,14 @@ defmodule Mailroom.IMAP.Utils do
   end)
   def parse_number(_, acc),
     do: String.to_integer(acc)
+
+  def quote_string(string),
+    do: do_quote_string(String.next_grapheme(string), ["\""])
+
+  defp do_quote_string({"\"", rest}, acc),
+    do: do_quote_string(String.next_grapheme(rest), ["\\\"" | acc])
+  defp do_quote_string({grapheme, rest}, acc),
+    do: do_quote_string(String.next_grapheme(rest), [grapheme | acc])
+  defp do_quote_string(nil, acc),
+    do: IO.iodata_to_binary(Enum.reverse(["\"" | acc]))
 end
