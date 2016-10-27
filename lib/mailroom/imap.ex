@@ -2,6 +2,8 @@ defmodule Mailroom.IMAP do
   require Logger
   use GenServer
 
+  import Mailroom.IMAP.Utils
+
   defmodule State do
     @moduledoc false
     defstruct socket: nil, state: :unauthenticated, ssl: false, debug: false, cmd_map: %{}, cmd_number: 1, capability: [], flags: [], permanent_flags: [], uid_validity: nil, uid_next: nil, highest_mod_seq: nil, recent: 0, exists: 0, temp: nil
@@ -136,7 +138,7 @@ defmodule Mailroom.IMAP do
     {:noreply, %{state | cmd_map: Map.delete(cmd_map, :connect)}}
   end
 
-  defp handle_response(<<"* OK [PERMANENTFLAGS (", msg :: binary>>, state),
+  defp handle_response(<<"* OK [PERMANENTFLAGS ", msg :: binary>>, state),
     do: {:noreply, %{state | permanent_flags: parse_list(msg)}}
   defp handle_response(<<"* OK [UIDVALIDITY ", msg :: binary>>, state),
     do: {:noreply, %{state | uid_validity: parse_number(msg)}}
@@ -148,7 +150,7 @@ defmodule Mailroom.IMAP do
     do: {:noreply, %{state | capability: parse_list(msg)}}
   defp handle_response(<<"* CAPABILITY ", msg :: binary>>, state),
     do: {:noreply, %{state | capability: parse_list(msg)}}
-  defp handle_response(<<"* FLAGS (", msg :: binary>>, state),
+  defp handle_response(<<"* FLAGS ", msg :: binary>>, state),
     do: {:noreply, %{state | flags: parse_list(msg)}}
   defp handle_response(<<"* BYE ", _msg :: binary>>, state),
     do: {:noreply, state}
@@ -229,26 +231,4 @@ defmodule Mailroom.IMAP do
     GenServer.reply(caller, {:error, String.strip(err_msg)})
     {:noreply, state}
   end
-
-  defp parse_list(string, temp \\ "", acc \\ [])
-  defp parse_list(<<")", _rest :: binary>>, temp, acc),
-    do: Enum.reverse([temp | acc])
-  defp parse_list(<<"]", _rest :: binary>>, temp, acc),
-    do: Enum.reverse([temp | acc])
-  defp parse_list(<<"(", rest :: binary>>, temp, acc),
-    do: parse_list(rest, temp, acc)
-  defp parse_list(<<" ", rest :: binary>>, temp, acc),
-    do: parse_list(rest, "", [temp | acc])
-  defp parse_list(<<char :: integer, rest :: binary>>, temp, acc),
-    do: parse_list(rest, <<temp :: binary, char>>, acc)
-
-  defp parse_number(string, acc \\ "")
-  0..9
-  |> Enum.map(&Integer.to_string/1)
-  |> Enum.each(fn(digit) ->
-    defp parse_number(<<unquote(digit), rest :: binary>>, acc),
-      do: parse_number(rest, <<acc :: binary, unquote(digit)>>)
-  end)
-  defp parse_number(_, acc),
-    do: String.to_integer(acc)
 end
