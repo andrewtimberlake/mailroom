@@ -6,7 +6,7 @@ defmodule Mailroom.IMAP do
 
   defmodule State do
     @moduledoc false
-    defstruct socket: nil, state: :unauthenticated, ssl: false, debug: false, cmd_map: %{}, cmd_number: 1, capability: [], flags: [], permanent_flags: [], uid_validity: nil, uid_next: nil, highest_mod_seq: nil, recent: 0, exists: 0, temp: nil
+    defstruct socket: nil, state: :unauthenticated, ssl: false, debug: false, cmd_map: %{}, cmd_number: 1, capability: [], flags: [], permanent_flags: [], uid_validity: nil, uid_next: nil, unseen: nil, highest_mod_seq: nil, recent: 0, exists: 0, temp: nil, mailbox: nil
   end
 
   @moduledoc """
@@ -92,6 +92,12 @@ defmodule Mailroom.IMAP do
   def recent_count(pid),
     do: GenServer.call(pid, :recent_count)
 
+  def unseen_count(pid),
+    do: GenServer.call(pid, :unseen_count)
+
+  def mailbox(pid),
+    do: GenServer.call(pid, :mailbox)
+
   def state(pid),
     do: GenServer.call(pid, :state)
 
@@ -114,7 +120,7 @@ defmodule Mailroom.IMAP do
   def handle_call({:select, :inbox}, from, state),
     do: handle_call({:select, "INBOX"}, from, state)
   def handle_call({:select, mailbox}, from, state),
-    do: {:noreply, send_command(from, ["SELECT", " ", mailbox], state)}
+    do: {:noreply, send_command(from, ["SELECT", " ", mailbox], %{state | temp: mailbox})}
 
   def handle_call(:close, from, state),
     do: {:noreply, send_command(from, "CLOSE", state)}
@@ -127,6 +133,12 @@ defmodule Mailroom.IMAP do
 
   def handle_call(:recent_count, _from, %{recent: recent} = state),
     do: {:reply, recent, state}
+
+  def handle_call(:unseen_count, _from, %{unseen: unseen} = state),
+    do: {:reply, unseen, state}
+
+  def handle_call(:mailbox, _from, %{mailbox: mailbox} = state),
+    do: {:reply, mailbox, state}
 
   def handle_call(:state, _from, %{state: connection_state} = state),
     do: {:reply, connection_state, state}
@@ -154,6 +166,8 @@ defmodule Mailroom.IMAP do
     do: {:noreply, %{state | permanent_flags: parse_list(msg)}}
   defp handle_response(<<"* OK [UIDVALIDITY ", msg :: binary>>, state),
     do: {:noreply, %{state | uid_validity: parse_number(msg)}}
+  defp handle_response(<<"* OK [UNSEEN ", msg :: binary>>, state),
+    do: {:noreply, %{state | unseen: parse_number(msg)}}
   defp handle_response(<<"* OK [UIDNEXT ", msg :: binary>>, state),
     do: {:noreply, %{state | uid_next: parse_number(msg)}}
   defp handle_response(<<"* OK [HIGHESTMODSEQ ", msg :: binary>>, state),
@@ -218,8 +232,8 @@ defmodule Mailroom.IMAP do
   defp process_command_response(cmd_tag, %{command: "LOGOUT", caller: caller}, msg, state) do
     send_reply(caller, msg, %{remove_command_from_state(state, cmd_tag) | state: :logged_out})
   end
-  defp process_command_response(cmd_tag, %{command: "SELECT", caller: caller}, msg, state),
-    do: send_reply(caller, msg, %{remove_command_from_state(state, cmd_tag) | state: :selected})
+  defp process_command_response(cmd_tag, %{command: "SELECT", caller: caller}, msg, %{temp: temp} = state),
+    do: send_reply(caller, msg, %{remove_command_from_state(state, cmd_tag) | state: :selected, mailbox: parse_mailbox({temp, msg})})
   defp process_command_response(cmd_tag, %{command: "CAPABILITY", caller: caller}, msg, %{temp: temp} = state),
     do: send_reply(caller, temp || msg, %{remove_command_from_state(state, cmd_tag) | state: :authenticated, temp: nil})
   defp process_command_response(cmd_tag, %{command: "CLOSE", caller: caller}, msg, state),
@@ -254,4 +268,11 @@ defmodule Mailroom.IMAP do
     GenServer.reply(caller, {:error, String.strip(err_msg)})
     {:noreply, state}
   end
+
+  defp parse_mailbox({"INBOX", msg}),
+    do: parse_mailbox({:inbox, msg})
+  defp parse_mailbox({name, <<"[READ-ONLY]", _rest :: binary>>}),
+    do: {name, :r}
+  defp parse_mailbox({name, <<"[READ-WRITE]", _rest :: binary>>}),
+    do: {name, :rw}
 end

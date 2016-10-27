@@ -92,8 +92,12 @@ defmodule Mailroom.IMAPTest do
       |> TestServer.on("A002 SELECT INBOX\r\n",    [
             "* FLAGS (\\Flagged \\Draft \\Deleted \\Seen)\r\n",
             "* OK [PERMANENTFLAGS (\\Flagged \\Draft \\Deleted \\Seen \\*)] Flags permitted\r\n",
-            "* 2 EXISTS\r\n",
+            "* 4 EXISTS\r\n",
             "* 1 RECENT\r\n",
+            "* OK [UNSEEN 2]\r\n",
+            "* OK [UIDVALIDITY 1474976037] UIDs valid\r\n",
+            "* OK [UIDNEXT 5] Predicted next UID\r\n",
+            "* OK [HIGHESTMODSEQ 2] Highest\r\n",
             "A002 OK [READ-WRITE] INBOX selected. (Success)\r\n"])
     end)
 
@@ -101,9 +105,11 @@ defmodule Mailroom.IMAPTest do
     client
     |> IMAP.select(:inbox)
     assert IMAP.state(client) == :selected
+    assert IMAP.mailbox(client) == {:inbox, :rw}
 
-    assert IMAP.email_count(client) == 2
+    assert IMAP.email_count(client) == 4
     assert IMAP.recent_count(client) == 1
+    assert IMAP.unseen_count(client) == 2
   end
 
   test "CLOSE" do
