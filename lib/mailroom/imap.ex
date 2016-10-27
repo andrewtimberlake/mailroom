@@ -80,6 +80,9 @@ defmodule Mailroom.IMAP do
   def select(pid, mailbox_name),
     do: GenServer.call(pid, {:select, mailbox_name})
 
+  def close(pid),
+    do: GenServer.call(pid, :close)
+
   def email_count(pid),
     do: GenServer.call(pid, :email_count)
 
@@ -109,6 +112,9 @@ defmodule Mailroom.IMAP do
     do: handle_call({:select, "INBOX"}, from, state)
   def handle_call({:select, mailbox}, from, state),
     do: {:noreply, send_command(from, ["SELECT", " ", mailbox], state)}
+
+  def handle_call(:close, from, state),
+    do: {:noreply, send_command(from, "CLOSE", state)}
 
   def handle_call(:email_count, _from, %{exists: exists} = state),
     do: {:reply, exists, state}
@@ -201,6 +207,8 @@ defmodule Mailroom.IMAP do
   end
   defp process_command_response(cmd_tag, %{command: "SELECT", caller: caller}, msg, state),
     do: send_reply(caller, msg, %{remove_command_from_state(state, cmd_tag) | state: :selected})
+  defp process_command_response(cmd_tag, %{command: "CLOSE", caller: caller}, msg, state),
+    do: send_reply(caller, msg, %{remove_command_from_state(state, cmd_tag) | state: :authenticated})
   defp process_command_response(cmd_tag, %{command: command}, msg, state) do
     Logger.warn("Command not processed: #{cmd_tag} OK #{msg} - #{command} - #{inspect(state)}")
     {:noreply, state}

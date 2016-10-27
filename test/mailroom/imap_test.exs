@@ -45,20 +45,34 @@ defmodule Mailroom.IMAPTest do
       |> TestServer.on("A001 LOGIN test@example.com P@55w0rD\r\n", [
             "* CAPABILITY (IMAPrev4)\r\n",
             "A001 OK test@example.com authenticated (Success)\r\n"])
-      |> TestServer.on("A002 SELECT INBOX\r\n",    [
-            "* FLAGS (\\Flagged \\Draft \\Deleted \\Seen)\r\n",
-            "* OK [PERMANENTFLAGS (\\Flagged \\Draft \\Deleted \\Seen \\*)] Flags permitted\r\n",
-            "* 1 EXISTS\r\n",
-            "* 0 RECENT\r\n",
-            "A002 OK [READ-WRITE] INBOX selected. (Success)\r\n"])
     end)
 
     assert {:ok, client} = IMAP.connect(server.address, "test@example.com", "P@55w0rD", port: server.port, ssl: true, debug: @debug)
     assert IMAP.state(client) == :authenticated
+  end
+
+  test "CLOSE" do
+    server = TestServer.start(ssl: true)
+    TestServer.expect(server, fn(expectations) ->
+      expectations
+      |> TestServer.on(:connect,    "* OK IMAP ready\r\n")
+      |> TestServer.on("A001 LOGIN test@example.com P@55w0rD\r\n", [
+            "* CAPABILITY (IMAPrev4)\r\n",
+            "A001 OK test@example.com authenticated (Success)\r\n"])
+      |> TestServer.on("A002 SELECT INBOX\r\n",    [
+            "* FLAGS (\\Flagged \\Draft \\Deleted \\Seen)\r\n",
+            "* OK [PERMANENTFLAGS (\\Flagged \\Draft \\Deleted \\Seen \\*)] Flags permitted\r\n",
+            "* 2 EXISTS\r\n",
+            "* 1 RECENT\r\n",
+            "A002 OK [READ-WRITE] INBOX selected. (Success)\r\n"])
+      |> TestServer.on("A003 CLOSE\r\n", [
+            "A003 OK Closed\r\n"])
+    end)
+
+    assert {:ok, client} = IMAP.connect(server.address, "test@example.com", "P@55w0rD", port: server.port, ssl: true, debug: @debug)
     client
     |> IMAP.select(:inbox)
-
-    assert IMAP.email_count(client) == 1
-    assert IMAP.recent_count(client) == 0
+    IMAP.close(client)
+    assert IMAP.state(client) == :authenticated
   end
 end
