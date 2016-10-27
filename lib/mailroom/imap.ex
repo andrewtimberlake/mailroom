@@ -202,10 +202,14 @@ defmodule Mailroom.IMAP do
     state = %{state | socket: ssl_socket, capability: nil}
     {:noreply, send_command(caller, ["LOGIN", " ", username, " ", password], %{state | temp: nil})}
   end
-  defp process_command_response(cmd_tag, %{command: "LOGIN", caller: caller}, msg, state) do
+  defp process_command_response(cmd_tag, %{command: "LOGIN", caller: caller}, msg, %{capability: capability} = state) do
     state = remove_command_from_state(state, cmd_tag)
     state = process_connection_message(msg, state)
-    send_reply(caller, msg, %{state | state: :authenticated})
+    if capability == [] do
+      {:noreply, send_command(caller, "CAPABILITY", %{state | temp: msg})}
+    else
+      send_reply(caller, msg, %{state | state: :authenticated})
+    end
   end
   defp process_command_response(cmd_tag, %{command: "LOGOUT", caller: caller}, _msg, %{temp: {:error, error}} = state) do
     state = remove_command_from_state(state, cmd_tag)
@@ -216,6 +220,8 @@ defmodule Mailroom.IMAP do
   end
   defp process_command_response(cmd_tag, %{command: "SELECT", caller: caller}, msg, state),
     do: send_reply(caller, msg, %{remove_command_from_state(state, cmd_tag) | state: :selected})
+  defp process_command_response(cmd_tag, %{command: "CAPABILITY", caller: caller}, msg, %{temp: temp} = state),
+    do: send_reply(caller, temp || msg, %{remove_command_from_state(state, cmd_tag) | state: :authenticated, temp: nil})
   defp process_command_response(cmd_tag, %{command: "CLOSE", caller: caller}, msg, state),
     do: send_reply(caller, msg, %{remove_command_from_state(state, cmd_tag) | state: :authenticated})
   defp process_command_response(cmd_tag, %{command: command}, msg, state) do

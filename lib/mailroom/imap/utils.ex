@@ -29,6 +29,11 @@ defmodule Mailroom.IMAP.Utils do
   defp do_parse_list(<<")", rest :: binary>>, temp, acc),
     do: {Enum.reverse([temp | acc]), rest}
 
+  defp do_parse_list(<<"\r", rest :: binary>>, nil, acc),
+    do: {Enum.reverse(acc), rest}
+  defp do_parse_list(<<"\r", rest :: binary>>, temp, acc),
+    do: {Enum.reverse([temp | acc]), rest}
+
   defp do_parse_list(<<" ", rest :: binary>>, nil, acc),
     do: do_parse_list(rest, nil, acc)
   defp do_parse_list(<<" ", rest :: binary>>, temp, acc),

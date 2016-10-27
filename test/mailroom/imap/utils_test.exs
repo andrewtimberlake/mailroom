@@ -12,6 +12,10 @@ defmodule Mailroom.IMAP.UtilsTest do
       assert parse_list("[one two three]") == ["one", "two", "three"]
     end
 
+    test "with no brackets" do
+      assert parse_list("one two three\r\n") == ["one", "two", "three"]
+    end
+
     test "with empty list" do
       assert parse_list("()") == []
     end

@@ -51,6 +51,21 @@ defmodule Mailroom.IMAPTest do
     assert IMAP.state(client) == :authenticated
   end
 
+  test "CAPABILITY request is issued if not supplied" do
+    server = TestServer.start(ssl: true)
+    TestServer.expect(server, fn(expectations) ->
+      expectations
+      |> TestServer.on(:connect,    "* OK IMAP ready\r\n")
+      |> TestServer.on("A001 LOGIN test@example.com P@55w0rD\r\n", [
+            "A001 OK test@example.com authenticated (Success)\r\n"])
+      |> TestServer.on("A002 CAPABILITY\r\n",    [
+            "* CAPABILITY IMAP4rev1 LITERAL+ ENABLE IDLE NAMESPACE UIDPLUS QUOTA\r\n",
+            "A002 OK CAPABILITY complete\r\n"])
+    end)
+
+    assert {:ok, client} = IMAP.connect(server.address, "test@example.com", "P@55w0rD", port: server.port, ssl: true, debug: @debug)
+  end
+
   test "SELECT" do
     server = TestServer.start(ssl: true)
     TestServer.expect(server, fn(expectations) ->
