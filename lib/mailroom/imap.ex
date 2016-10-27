@@ -80,6 +80,9 @@ defmodule Mailroom.IMAP do
   def select(pid, mailbox_name),
     do: GenServer.call(pid, {:select, mailbox_name})
 
+  def examine(pid, mailbox_name),
+    do: GenServer.call(pid, {:examine, mailbox_name})
+
   def close(pid),
     do: GenServer.call(pid, :close)
 
@@ -121,6 +124,11 @@ defmodule Mailroom.IMAP do
     do: handle_call({:select, "INBOX"}, from, state)
   def handle_call({:select, mailbox}, from, state),
     do: {:noreply, send_command(from, ["SELECT", " ", mailbox], %{state | temp: mailbox})}
+
+  def handle_call({:examine, :inbox}, from, state),
+    do: handle_call({:examine, "INBOX"}, from, state)
+  def handle_call({:examine, mailbox}, from, state),
+    do: {:noreply, send_command(from, ["EXAMINE", " ", mailbox], %{state | temp: mailbox})}
 
   def handle_call(:close, from, state),
     do: {:noreply, send_command(from, "CLOSE", state)}
@@ -233,6 +241,8 @@ defmodule Mailroom.IMAP do
     send_reply(caller, msg, %{remove_command_from_state(state, cmd_tag) | state: :logged_out})
   end
   defp process_command_response(cmd_tag, %{command: "SELECT", caller: caller}, msg, %{temp: temp} = state),
+    do: send_reply(caller, msg, %{remove_command_from_state(state, cmd_tag) | state: :selected, mailbox: parse_mailbox({temp, msg})})
+  defp process_command_response(cmd_tag, %{command: "EXAMINE", caller: caller}, msg, %{temp: temp} = state),
     do: send_reply(caller, msg, %{remove_command_from_state(state, cmd_tag) | state: :selected, mailbox: parse_mailbox({temp, msg})})
   defp process_command_response(cmd_tag, %{command: "CAPABILITY", caller: caller}, msg, %{temp: temp} = state),
     do: send_reply(caller, temp || msg, %{remove_command_from_state(state, cmd_tag) | state: :authenticated, temp: nil})

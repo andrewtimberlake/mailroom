@@ -137,6 +137,37 @@ defmodule Mailroom.IMAPTest do
     assert IMAP.state(client) == :authenticated
   end
 
+  test "EXAMINE" do
+    server = TestServer.start(ssl: true)
+    TestServer.expect(server, fn(expectations) ->
+      expectations
+      |> TestServer.on(:connect,    "* OK IMAP ready\r\n")
+      |> TestServer.on("A001 LOGIN \"test@example.com\" \"P@55w0rD\"\r\n", [
+            "* CAPABILITY (IMAPrev4)\r\n",
+            "A001 OK test@example.com authenticated (Success)\r\n"])
+      |> TestServer.on("A002 EXAMINE INBOX\r\n",    [
+            "* FLAGS (\\Flagged \\Draft \\Deleted \\Seen)\r\n",
+            "* OK [PERMANENTFLAGS ()] Read-only mailbox\r\n",
+            "* 4 EXISTS\r\n",
+            "* 1 RECENT\r\n",
+            "* OK [UNSEEN 2]\r\n",
+            "* OK [UIDVALIDITY 1474976037] UIDs valid\r\n",
+            "* OK [UIDNEXT 5] Predicted next UID\r\n",
+            "* OK [HIGHESTMODSEQ 2] Highest\r\n",
+            "A002 OK [READ-ONLY] examining INBOX. (Success)\r\n"])
+    end)
+
+    assert {:ok, client} = IMAP.connect(server.address, "test@example.com", "P@55w0rD", port: server.port, ssl: true, debug: @debug)
+    client
+    |> IMAP.examine(:inbox)
+    assert IMAP.state(client) == :selected
+    assert IMAP.mailbox(client) == {:inbox, :r}
+
+    assert IMAP.email_count(client) == 4
+    assert IMAP.recent_count(client) == 1
+    assert IMAP.unseen_count(client) == 2
+  end
+
   test "LOGOUT" do
     server = TestServer.start(ssl: true)
     TestServer.expect(server, fn(expectations) ->
