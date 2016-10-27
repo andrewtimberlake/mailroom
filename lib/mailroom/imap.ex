@@ -157,7 +157,7 @@ defmodule Mailroom.IMAP do
               [number, "EXISTS"] -> %{state | exists: String.to_integer(number)}
               [number, "RECENT"] -> %{state | recent: String.to_integer(number)}
               _ ->
-                Logger.warn("Unknown incedental command: #{msg}")
+                Logger.warn("Unknown untagged response: #{msg}")
                 state
             end
     {:noreply, state}
