@@ -53,6 +53,15 @@ defmodule Mailroom.IMAP.UtilsTest do
     assert parse_string_only("\"one\\\"two\"") == "one\"two"
   end
 
+  test "items_to_list/1" do
+    assert items_to_list(["MESSAGES", "RECENT"]) == ["(", "MESSAGES", " ", "RECENT", ")"]
+    assert items_to_list([:messages, :recent]) == ["(", "MESSAGES", " ", "RECENT", ")"]
+  end
+
+  test "list_to_status_items/1" do
+    assert list_to_status_items(["MESSAGES", "4", "RECENT", "2", "UNSEEN", "1"]) == %{messages: 4, recent: 2, unseen: 1}
+  end
+
   describe "parse_number/1" do
     test "with a single digit" do
       assert parse_number("1") == 1

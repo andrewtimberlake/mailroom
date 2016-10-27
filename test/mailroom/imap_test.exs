@@ -196,6 +196,24 @@ defmodule Mailroom.IMAPTest do
                     {"INBOX.Archive", ".", ["\\HasNoChildren", "\\Archive"]}]
   end
 
+  test "STATUS" do
+    server = TestServer.start(ssl: true)
+    TestServer.expect(server, fn(expectations) ->
+      expectations
+      |> TestServer.on(:connect,    "* OK IMAP ready\r\n")
+      |> TestServer.on("A001 LOGIN \"test@example.com\" \"P@55w0rD\"\r\n", [
+            "* CAPABILITY (IMAPrev4)\r\n",
+            "A001 OK test@example.com authenticated (Success)\r\n"])
+      |> TestServer.on("A002 STATUS \"INBOX.Sent\" (MESSAGES RECENT UNSEEN)\r\n",    [
+            "* STATUS \"INBOX.Sent\" (MESSAGES 4 RECENT 2 UNSEEN 3)\r\n",
+            "A002 OK STATUS complete\r\n"])
+    end)
+
+    assert {:ok, client} = IMAP.connect(server.address, "test@example.com", "P@55w0rD", port: server.port, ssl: true, debug: @debug)
+    {:ok, statuses} = IMAP.status(client, "INBOX.Sent", [:messages, :recent, :unseen])
+    assert statuses == %{messages: 4, recent: 2, unseen: 3}
+  end
+
   test "LOGOUT" do
     server = TestServer.start(ssl: true)
     TestServer.expect(server, fn(expectations) ->

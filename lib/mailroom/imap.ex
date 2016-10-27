@@ -86,6 +86,9 @@ defmodule Mailroom.IMAP do
   def list(pid, reference \\ "", mailbox_name \\ "*"),
     do: GenServer.call(pid, {:list, reference, mailbox_name})
 
+  def status(pid, mailbox_name, items),
+    do: GenServer.call(pid, {:status, mailbox_name, items})
+
   def close(pid),
     do: GenServer.call(pid, :close)
 
@@ -135,6 +138,9 @@ defmodule Mailroom.IMAP do
 
   def handle_call({:list, reference, mailbox_name}, from, state),
     do: {:noreply, send_command(from, ["LIST", " ", quote_string(reference), " ", quote_string(mailbox_name)], state)}
+
+  def handle_call({:status, mailbox_name, items}, from, state),
+    do: {:noreply, send_command(from, ["STATUS", " ", quote_string(mailbox_name), " ", items_to_list(items)], state)}
 
   def handle_call(:close, from, state),
     do: {:noreply, send_command(from, "CLOSE", state)}
@@ -195,6 +201,12 @@ defmodule Mailroom.IMAP do
     {delimiter, <<" ", rest :: binary>>} = parse_string(rest)
     mailbox = parse_string_only(rest)
     {:noreply, %{state | temp: [{mailbox, delimiter, flags} | List.wrap(temp)]}}
+  end
+  defp handle_response(<<"* STATUS ", rest :: binary>>, %{temp: temp} = state) do
+    {mailbox, <<rest :: binary>>} = parse_string(rest)
+    response = parse_list_only(rest)
+    response = list_to_status_items(response)
+    {:noreply, %{state | temp: response}}
   end
   defp handle_response(<<"* FLAGS ", msg :: binary>>, state),
     do: {:noreply, %{state | flags: parse_list_only(msg)}}
@@ -258,6 +270,8 @@ defmodule Mailroom.IMAP do
     do: send_reply(caller, msg, %{remove_command_from_state(state, cmd_tag) | state: :selected, mailbox: parse_mailbox({temp, msg})})
   defp process_command_response(cmd_tag, %{command: "LIST", caller: caller}, msg, %{temp: temp} = state) when is_list(temp),
     do: send_reply(caller, Enum.reverse(temp), remove_command_from_state(state, cmd_tag))
+  defp process_command_response(cmd_tag, %{command: "STATUS", caller: caller}, msg, %{temp: temp} = state),
+    do: send_reply(caller, temp, remove_command_from_state(state, cmd_tag))
   defp process_command_response(cmd_tag, %{command: "CAPABILITY", caller: caller}, msg, %{temp: temp} = state),
     do: send_reply(caller, temp || msg, %{remove_command_from_state(state, cmd_tag) | state: :authenticated, temp: nil})
   defp process_command_response(cmd_tag, %{command: "CLOSE", caller: caller}, msg, state),

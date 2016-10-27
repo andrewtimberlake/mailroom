@@ -69,6 +69,24 @@ defmodule Mailroom.IMAP.Utils do
   defp do_parse_string({grapheme, rest}, inquotes, acc),
     do: do_parse_string(String.next_grapheme(rest), inquotes, [grapheme | acc])
 
+  def items_to_list(list, acc \\ [])
+  def items_to_list([], [" " | acc]),
+    do: Enum.reverse([")" | acc])
+  def items_to_list(list, []),
+    do: items_to_list(list, ["("])
+  def items_to_list([head | tail], acc),
+    do: items_to_list(tail, [" ", item_to_string(head) | acc])
+
+  defp item_to_string(string) when is_binary(string), do: string
+  defp item_to_string(atom) when is_atom(atom), do: atom |> Atom.to_string |> String.upcase
+
+  defp item_to_atom(string) when is_binary(string), do: string |> String.downcase |> String.to_existing_atom
+
+  def list_to_status_items(list, acc \\ %{})
+  def list_to_status_items([], acc), do: acc
+  def list_to_status_items([item, count | tail], acc),
+    do: list_to_status_items(tail, Map.put_new(acc, item_to_atom(item), parse_number(count)))
+
   def parse_number(string, acc \\ "")
   0..9
   |> Enum.map(&Integer.to_string/1)
