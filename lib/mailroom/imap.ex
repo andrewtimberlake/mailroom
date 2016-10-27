@@ -83,6 +83,9 @@ defmodule Mailroom.IMAP do
   def close(pid),
     do: GenServer.call(pid, :close)
 
+  def logout(pid),
+    do: GenServer.call(pid, :logout)
+
   def email_count(pid),
     do: GenServer.call(pid, :email_count)
 
@@ -115,6 +118,9 @@ defmodule Mailroom.IMAP do
 
   def handle_call(:close, from, state),
     do: {:noreply, send_command(from, "CLOSE", state)}
+
+  def handle_call(:logout, from, state),
+    do: {:noreply, send_command(from, "LOGOUT", state)}
 
   def handle_call(:email_count, _from, %{exists: exists} = state),
     do: {:reply, exists, state}
@@ -203,7 +209,10 @@ defmodule Mailroom.IMAP do
   end
   defp process_command_response(cmd_tag, %{command: "LOGOUT", caller: caller}, _msg, %{temp: {:error, error}} = state) do
     state = remove_command_from_state(state, cmd_tag)
-    send_error(caller, error, state)
+    send_error(caller, error, %{state | state: :logged_out})
+  end
+  defp process_command_response(cmd_tag, %{command: "LOGOUT", caller: caller}, msg, state) do
+    send_reply(caller, msg, %{remove_command_from_state(state, cmd_tag) | state: :logged_out})
   end
   defp process_command_response(cmd_tag, %{command: "SELECT", caller: caller}, msg, state),
     do: send_reply(caller, msg, %{remove_command_from_state(state, cmd_tag) | state: :selected})
