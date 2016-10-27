@@ -275,7 +275,7 @@ defmodule Mailroom.IMAP do
   defp process_command_response(cmd_tag, %{command: "CAPABILITY", caller: caller}, msg, %{temp: temp} = state),
     do: send_reply(caller, temp || msg, %{remove_command_from_state(state, cmd_tag) | state: :authenticated, temp: nil})
   defp process_command_response(cmd_tag, %{command: "CLOSE", caller: caller}, msg, state),
-    do: send_reply(caller, msg, %{remove_command_from_state(state, cmd_tag) | state: :authenticated})
+    do: send_reply(caller, msg, %{remove_command_from_state(state, cmd_tag) | state: :authenticated, mailbox: nil})
   defp process_command_response(cmd_tag, %{command: command}, msg, state) do
     Logger.warn("Command not processed: #{cmd_tag} OK #{msg} - #{command} - #{inspect(state)}")
     {:noreply, state}

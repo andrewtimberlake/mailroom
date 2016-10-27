@@ -135,6 +135,7 @@ defmodule Mailroom.IMAPTest do
     |> IMAP.select(:inbox)
     IMAP.close(client)
     assert IMAP.state(client) == :authenticated
+    refute IMAP.mailbox(client)
   end
 
   test "EXAMINE" do
