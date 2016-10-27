@@ -5,32 +5,52 @@ defmodule Mailroom.IMAP.UtilsTest do
 
   describe "parse_list/1" do
     test "with simple list" do
-      assert parse_list("(one two three)") == ["one", "two", "three"]
+      assert parse_list("(one two three)") == {["one", "two", "three"], ""}
     end
 
     test "with [] brackets" do
-      assert parse_list("[one two three]") == ["one", "two", "three"]
+      assert parse_list("[one two three]") == {["one", "two", "three"], ""}
     end
 
     test "with no brackets" do
-      assert parse_list("one two three\r\n") == ["one", "two", "three"]
+      assert parse_list("one two three\r\n") == {["one", "two", "three"], "\r\n"}
     end
 
     test "with empty list" do
-      assert parse_list("()") == []
+      assert parse_list("()") == {[], ""}
     end
 
     test "with nested list" do
-      assert parse_list("(one (two three) four)") == ["one", ["two", "three"], "four"]
+      assert parse_list("(one (two three) four)") == {["one", ["two", "three"], "four"], ""}
     end
 
     test "with nested lists" do
-      assert parse_list("(one (two (three)) four)") == ["one", ["two", ["three"]], "four"]
+      assert parse_list("(one (two (three)) four)") == {["one", ["two", ["three"]], "four"], ""}
     end
 
     test "with nested empty list" do
-      assert parse_list("(one () four)") == ["one", [], "four"]
+      assert parse_list("(one () four)") == {["one", [], "four"], ""}
     end
+  end
+
+  test "parse_list_only/1" do
+    assert parse_list_only("(one two)") == ["one", "two"]
+    assert parse_list_only("(one two) three") == ["one", "two"]
+  end
+
+  test "parse_string/1" do
+    assert parse_string("one two") == {"one", " two"}
+    assert parse_string("one\r\n") == {"one", "\r\n"}
+    assert parse_string("\"one\" two") == {"one", " two"}
+    assert parse_string("\"one two\"") == {"one two", ""}
+    assert parse_string("\"one\\\"two\"") == {"one\"two", ""}
+  end
+
+  test "parse_string_only/1" do
+    assert parse_string_only("one\r\n") == "one"
+    assert parse_string_only("\"one\" two") == "one"
+    assert parse_string_only("\"one two\"") == "one two"
+    assert parse_string_only("\"one\\\"two\"") == "one\"two"
   end
 
   describe "parse_number/1" do

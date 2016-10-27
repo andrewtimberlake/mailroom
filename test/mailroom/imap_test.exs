@@ -168,6 +168,34 @@ defmodule Mailroom.IMAPTest do
     assert IMAP.unseen_count(client) == 2
   end
 
+  test "LIST" do
+    server = TestServer.start(ssl: true)
+    TestServer.expect(server, fn(expectations) ->
+      expectations
+      |> TestServer.on(:connect,    "* OK IMAP ready\r\n")
+      |> TestServer.on("A001 LOGIN \"test@example.com\" \"P@55w0rD\"\r\n", [
+            "* CAPABILITY (IMAPrev4)\r\n",
+            "A001 OK test@example.com authenticated (Success)\r\n"])
+      |> TestServer.on("A002 LIST \"\" \"*\"\r\n",    [
+            "* LIST (\\HasChildren) \".\" INBOX\r\n",
+            "* LIST (\\HasNoChildren \\Trash) \".\" INBOX.Trash\r\n",
+            "* LIST (\\HasNoChildren \\Drafts) \".\" INBOX.Drafts\r\n",
+            "* LIST (\\HasNoChildren \\Sent) \".\" INBOX.Sent\r\n",
+            "* LIST (\\HasNoChildren \\Junk) \".\" INBOX.Junk\r\n",
+            "* LIST (\\HasNoChildren \\Archive) \".\" \"INBOX.Archive\"\r\n",
+            "A002 OK LIST complete\r\n"])
+    end)
+
+    assert {:ok, client} = IMAP.connect(server.address, "test@example.com", "P@55w0rD", port: server.port, ssl: true, debug: @debug)
+    {:ok, list} = IMAP.list(client)
+    assert list == [{"INBOX", ".", ["\\HasChildren"]},
+                    {"INBOX.Trash", ".", ["\\HasNoChildren", "\\Trash"]},
+                    {"INBOX.Drafts", ".", ["\\HasNoChildren", "\\Drafts"]},
+                    {"INBOX.Sent", ".", ["\\HasNoChildren", "\\Sent"]},
+                    {"INBOX.Junk", ".", ["\\HasNoChildren", "\\Junk"]},
+                    {"INBOX.Archive", ".", ["\\HasNoChildren", "\\Archive"]}]
+  end
+
   test "LOGOUT" do
     server = TestServer.start(ssl: true)
     TestServer.expect(server, fn(expectations) ->

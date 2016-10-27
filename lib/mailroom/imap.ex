@@ -83,6 +83,9 @@ defmodule Mailroom.IMAP do
   def examine(pid, mailbox_name),
     do: GenServer.call(pid, {:examine, mailbox_name})
 
+  def list(pid, reference \\ "", mailbox_name \\ "*"),
+    do: GenServer.call(pid, {:list, reference, mailbox_name})
+
   def close(pid),
     do: GenServer.call(pid, :close)
 
@@ -130,6 +133,9 @@ defmodule Mailroom.IMAP do
   def handle_call({:examine, mailbox}, from, state),
     do: {:noreply, send_command(from, ["EXAMINE", " ", mailbox], %{state | temp: mailbox})}
 
+  def handle_call({:list, reference, mailbox_name}, from, state),
+    do: {:noreply, send_command(from, ["LIST", " ", quote_string(reference), " ", quote_string(mailbox_name)], state)}
+
   def handle_call(:close, from, state),
     do: {:noreply, send_command(from, "CLOSE", state)}
 
@@ -171,7 +177,7 @@ defmodule Mailroom.IMAP do
   end
 
   defp handle_response(<<"* OK [PERMANENTFLAGS ", msg :: binary>>, state),
-    do: {:noreply, %{state | permanent_flags: parse_list(msg)}}
+    do: {:noreply, %{state | permanent_flags: parse_list_only(msg)}}
   defp handle_response(<<"* OK [UIDVALIDITY ", msg :: binary>>, state),
     do: {:noreply, %{state | uid_validity: parse_number(msg)}}
   defp handle_response(<<"* OK [UNSEEN ", msg :: binary>>, state),
@@ -181,11 +187,17 @@ defmodule Mailroom.IMAP do
   defp handle_response(<<"* OK [HIGHESTMODSEQ ", msg :: binary>>, state),
     do: {:noreply, %{state | highest_mod_seq: parse_number(msg)}}
   defp handle_response(<<"* OK [CAPABILITY ", msg :: binary>>, state),
-    do: {:noreply, %{state | capability: parse_list(msg)}}
+    do: {:noreply, %{state | capability: parse_list_only(msg)}}
   defp handle_response(<<"* CAPABILITY ", msg :: binary>>, state),
-    do: {:noreply, %{state | capability: parse_list(msg)}}
+    do: {:noreply, %{state | capability: parse_list_only(msg)}}
+  defp handle_response(<<"* LIST ", rest :: binary>>, %{temp: temp} = state) do
+    {flags, <<" ", rest :: binary>>} = parse_list(rest)
+    {delimiter, <<" ", rest :: binary>>} = parse_string(rest)
+    mailbox = parse_string_only(rest)
+    {:noreply, %{state | temp: [{mailbox, delimiter, flags} | List.wrap(temp)]}}
+  end
   defp handle_response(<<"* FLAGS ", msg :: binary>>, state),
-    do: {:noreply, %{state | flags: parse_list(msg)}}
+    do: {:noreply, %{state | flags: parse_list_only(msg)}}
   defp handle_response(<<"* BYE ", _msg :: binary>>, state),
     do: {:noreply, state}
   defp handle_response(<<"* ", msg :: binary>>, state) do
@@ -206,7 +218,7 @@ defmodule Mailroom.IMAP do
   end
 
   defp process_connection_message(<<"[CAPABILITY ", msg :: binary>>, state),
-    do: %{state | capability: parse_list(msg)}
+    do: %{state | capability: parse_list_only(msg)}
   defp process_connection_message(_msg, state), do: state
 
   defp handle_tagged_response(cmd_tag, <<"OK ", msg :: binary>>, %{cmd_map: cmd_map} = state),
@@ -244,6 +256,8 @@ defmodule Mailroom.IMAP do
     do: send_reply(caller, msg, %{remove_command_from_state(state, cmd_tag) | state: :selected, mailbox: parse_mailbox({temp, msg})})
   defp process_command_response(cmd_tag, %{command: "EXAMINE", caller: caller}, msg, %{temp: temp} = state),
     do: send_reply(caller, msg, %{remove_command_from_state(state, cmd_tag) | state: :selected, mailbox: parse_mailbox({temp, msg})})
+  defp process_command_response(cmd_tag, %{command: "LIST", caller: caller}, msg, %{temp: temp} = state) when is_list(temp),
+    do: send_reply(caller, Enum.reverse(temp), remove_command_from_state(state, cmd_tag))
   defp process_command_response(cmd_tag, %{command: "CAPABILITY", caller: caller}, msg, %{temp: temp} = state),
     do: send_reply(caller, temp || msg, %{remove_command_from_state(state, cmd_tag) | state: :authenticated, temp: nil})
   defp process_command_response(cmd_tag, %{command: "CLOSE", caller: caller}, msg, state),
