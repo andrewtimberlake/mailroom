@@ -246,6 +246,40 @@ defmodule Mailroom.IMAPTest do
     IMAP.logout(client)
   end
 
+  test "FETCH request multiple items per message" do
+    server = TestServer.start(ssl: true)
+    TestServer.expect(server, fn(expectations) ->
+      expectations
+      |> TestServer.on(:connect,    "* OK IMAP ready\r\n")
+      |> TestServer.on("A001 LOGIN \"test@example.com\" \"P@55w0rD\"\r\n", [
+            "* CAPABILITY (IMAPrev4)\r\n",
+            "A001 OK test@example.com authenticated (Success)\r\n"])
+      |> TestServer.on("A002 SELECT INBOX\r\n",    [
+            "* FLAGS (\\Flagged \\Draft \\Deleted \\Seen)\r\n",
+            "* OK [PERMANENTFLAGS (\\Flagged \\Draft \\Deleted \\Seen \\*)] Flags permitted\r\n",
+            "* 2 EXISTS\r\n",
+            "* 1 RECENT\r\n",
+            "A002 OK [READ-WRITE] INBOX selected. (Success)\r\n"])
+      |> TestServer.on("A003 FETCH 1 (UID FLAGS RFC822.SIZE)\r\n", [
+            "* 1 FETCH (RFC822.SIZE 3325 INTERNALDATE \"26-Oct-2016 12:23:20 +0000\" FLAGS (\Seen))\r\n",
+            "A003 OK Success\r\n"])
+      |> TestServer.on("A004 LOGOUT\r\n", [
+            "* BYE We're out of here\r\n",
+            "A004 OK Logged out\r\n"])
+    end)
+
+    assert {:ok, client} = IMAP.connect(server.address, "test@example.com", "P@55w0rD", port: server.port, ssl: true, debug: @debug)
+    {:ok, msgs} =
+      client
+      |> IMAP.select(:inbox)
+      |> IMAP.fetch(1, [:uid, :flags, :rfc822_size])
+
+    assert msgs == [{1, %{flags: ["Seen"],
+                          internal_date: Timex.parse!("26-Oct-2016 12:23:20 +0000", "{D}-{Mshort}-{YYYY} {h24}:{m}:{s} {Z}"),
+                          rfc822_size: "3325"}}]
+    IMAP.logout(client)
+  end
+
   test "FETCH multiple messages" do
     server = TestServer.start(ssl: true)
     TestServer.expect(server, fn(expectations) ->
@@ -279,6 +313,79 @@ defmodule Mailroom.IMAPTest do
 
     assert_received {1, %{uid: 46}}
     assert_received {2, %{uid: 47}}
+  end
+
+  test "FETCH envelope" do
+    server = TestServer.start(ssl: true)
+    TestServer.expect(server, fn(expectations) ->
+      expectations
+      |> TestServer.on(:connect,    "* OK IMAP ready\r\n")
+      |> TestServer.on("A001 LOGIN \"test@example.com\" \"P@55w0rD\"\r\n", [
+            "* CAPABILITY (IMAPrev4)\r\n",
+            "A001 OK test@example.com authenticated (Success)\r\n"])
+      |> TestServer.on("A002 SELECT INBOX\r\n",    [
+            "* FLAGS (\\Flagged \\Draft \\Deleted \\Seen)\r\n",
+            "* OK [PERMANENTFLAGS (\\Flagged \\Draft \\Deleted \\Seen \\*)] Flags permitted\r\n",
+            "* 2 EXISTS\r\n",
+            "* 1 RECENT\r\n",
+            "A002 OK [READ-WRITE] INBOX selected. (Success)\r\n"])
+      |> TestServer.on("A003 FETCH 1 (ENVELOPE)\r\n", [
+            "* 1 FETCH (ENVELOPE (\"Wed, 26 Oct 2016 14:23:14 +0200\" \"Test 1\" ((\"John Doe\" NIL \"john\" \"example.com\")) ((\"John Doe\" NIL \"john\" \"example.com\")) ((\"John Doe\" NIL \"john\" \"example.com\")) ((NIL NIL \"dev\" \"debtflow.co.za\")) NIL NIL NIL \"<B042B704-E13E-44A2-8FEC-67A43B6DD6DB@example.com>\"))\r\n",
+            "A003 OK Success\r\n"])
+      |> TestServer.on("A004 LOGOUT\r\n", [
+            "* BYE We're out of here\r\n",
+            "A004 OK Logged out\r\n"])
+    end)
+
+    assert {:ok, client} = IMAP.connect(server.address, "test@example.com", "P@55w0rD", port: server.port, ssl: true, debug: @debug)
+    {:ok, msgs} =
+      client
+      |> IMAP.select(:inbox)
+      |> IMAP.fetch(1, :envelope)
+
+    assert msgs == [{1, %{envelope: %{date: Timex.parse!("Wed, 26 Oct 2016 14:23:14 +0200", "{RFC822}"),
+                                      subject: "Test 1",
+                                      from: [{"John Doe", "john@example.com"}],
+                                      sender: [{"John Doe", "john@example.com"}],
+                                      reply_to: [{"John Doe", "john@example.com"}],
+                                      to: [{nil, "dev@debtflow.co.za"}],
+                                      cc: [],
+                                      bcc: [],
+                                      in_reply_to: [],
+                                      message_id: "<B042B704-E13E-44A2-8FEC-67A43B6DD6DB@example.com>"}}}]
+    IMAP.logout(client)
+  end
+
+  test "FETCH body" do
+    server = TestServer.start(ssl: true)
+    TestServer.expect(server, fn(expectations) ->
+      expectations
+      |> TestServer.on(:connect,    "* OK IMAP ready\r\n")
+      |> TestServer.on("A001 LOGIN \"test@example.com\" \"P@55w0rD\"\r\n", [
+            "* CAPABILITY (IMAPrev4)\r\n",
+            "A001 OK test@example.com authenticated (Success)\r\n"])
+      |> TestServer.on("A002 SELECT INBOX\r\n",    [
+            "* FLAGS (\\Flagged \\Draft \\Deleted \\Seen)\r\n",
+            "* OK [PERMANENTFLAGS (\\Flagged \\Draft \\Deleted \\Seen \\*)] Flags permitted\r\n",
+            "* 2 EXISTS\r\n",
+            "* 1 RECENT\r\n",
+            "A002 OK [READ-WRITE] INBOX selected. (Success)\r\n"])
+      |> TestServer.on("A003 FETCH 1 (BODY[TEXT])\r\n", [
+            "* 1 FETCH (BODY[TEXT] {8}\r\nTest 1\r\n)\r\n",
+            "A003 OK Success\r\n"])
+      |> TestServer.on("A004 LOGOUT\r\n", [
+            "* BYE We're out of here\r\n",
+            "A004 OK Logged out\r\n"])
+    end)
+
+    assert {:ok, client} = IMAP.connect(server.address, "test@example.com", "P@55w0rD", port: server.port, ssl: true, debug: @debug)
+    {:ok, msgs} =
+      client
+      |> IMAP.select(:inbox)
+      |> IMAP.fetch(1, "BODY[TEXT]")
+
+    assert msgs == [{1, %{"BODY[TEXT]" => "Test 1\r\n"}}]
+    IMAP.logout(client)
   end
 
   test "LOGOUT" do

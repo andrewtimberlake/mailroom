@@ -219,10 +219,11 @@ defmodule Mailroom.IMAP do
     do: {:noreply, %{state | uid_next: parse_number(msg)}}
   defp handle_response(<<"* OK [HIGHESTMODSEQ ", msg :: binary>>, state),
     do: {:noreply, %{state | highest_mod_seq: parse_number(msg)}}
-  defp handle_response(<<"* OK [CAPABILITY ", msg :: binary>>, state),
-    do: {:noreply, %{state | capability: parse_list_only(msg)}}
+  defp handle_response(<<"* OK [CAPABILITY ", msg :: binary>>, state) do
+    {:noreply, %{state | capability: parse_capability(msg)}}
+  end
   defp handle_response(<<"* CAPABILITY ", msg :: binary>>, state),
-    do: {:noreply, %{state | capability: parse_list_only(msg)}}
+    do: {:noreply, %{state | capability: parse_capability(msg)}}
   defp handle_response(<<"* LIST ", rest :: binary>>, %{temp: temp} = state) do
     {flags, <<" ", rest :: binary>>} = parse_list(rest)
     {delimiter, <<" ", rest :: binary>>} = parse_string(rest)
@@ -240,10 +241,17 @@ defmodule Mailroom.IMAP do
   defp handle_response(<<"* BYE ", _msg :: binary>>, state),
     do: {:noreply, state}
   defp handle_response(<<"* ", msg :: binary>>, state) do
-    state = case String.split(String.strip(msg), " ", parts: 3) do
-              [number, "EXISTS"] -> %{state | exists: String.to_integer(number)}
-              [number, "RECENT"] -> %{state | recent: String.to_integer(number)}
-              [number, "FETCH", rest] -> %{state | temp: [{String.to_integer(number), parse_fetch_response(rest)} | state.temp]}
+    state = case String.split(msg, " ", parts: 3) do
+              [number, "EXISTS\r\n"] -> %{state | exists: String.to_integer(number)}
+              [number, "RECENT\r\n"] -> %{state | recent: String.to_integer(number)}
+              [number, "FETCH", rest] ->
+                data = case Regex.run(~r/(.+ {(\d+)}\r\n)$/, rest) do
+                         [_, initial, bytes] ->
+                           fetch_all_data(String.to_integer(bytes), 0, [initial], state)
+                         _ ->
+                           rest
+                       end
+                %{state | temp: [{String.to_integer(number), parse_fetch_response(data)} | state.temp]}
               _ ->
                 Logger.warn("Unknown untagged response: #{msg}")
                 state
@@ -260,11 +268,62 @@ defmodule Mailroom.IMAP do
   defp parse_fetch_response(string) do
     string
     |> parse_list_only
-    |> list_to_status_items
+    |> list_to_items
+    |> parse_fetch_results
+  end
+
+  defp parse_fetch_results(%{} = map) do
+    map
+    |> Enum.map(fn({key, value}) ->
+      parse_fetch_item(key, value)
+    end)
+    |> Map.new
+  end
+
+  defp parse_fetch_item(:internal_date, datetime),
+    do: {:internal_date, parse_datetime(datetime)}
+  defp parse_fetch_item(:uid, datetime),
+    do: {:uid, parse_number(datetime)}
+  defp parse_fetch_item(:envelope, envelope) do
+    [date, subject, from, sender, reply_to, to, cc, bcc, in_reply_to, message_id] = envelope
+    {:envelope, %{date: parse_datetime(date),
+                  subject: subject,
+                  from: parse_addresses(from),
+                  sender: parse_addresses(sender),
+                  reply_to: parse_addresses(reply_to),
+                  to: parse_addresses(to),
+                  cc: parse_addresses(cc),
+                  bcc: parse_addresses(bcc),
+                  in_reply_to: parse_addresses(in_reply_to),
+                  message_id: message_id}}
+  end
+  defp parse_fetch_item(key, value),
+    do: {key, value}
+
+  defp parse_addresses(nil), do: []
+  defp parse_addresses([]), do: []
+  defp parse_addresses(values) do
+    Enum.map(values, fn([name, _smtp_source_route, mailbox_name, host_name]) ->
+      {name, "#{mailbox_name}@#{host_name}"}
+    end)
+  end
+
+  if Code.ensure_compiled?(Timex) do
+    defp parse_datetime(datetime) do
+      with {:error, _} <- Timex.parse(datetime, "{RFC822}"),
+           {:error, _} <- Timex.parse(datetime, "{D}-{Mshort}-{YYYY} {h24}:{m}:{s} {Z}") do
+        {:error, "Unable to parse #{datetime}"}
+      else
+        {:ok, datetime} -> datetime
+      end
+    end
+  else
+    defp parse_datetime(datetime),
+      do: datetime
   end
 
   defp process_connection_message(<<"[CAPABILITY ", msg :: binary>>, state),
-    do: %{state | capability: parse_list_only(msg)}
+    do: %{state | capability: parse_capability(msg)}
   defp process_connection_message(_msg, state), do: state
 
   defp handle_tagged_response(cmd_tag, <<"OK ", msg :: binary>>, %{cmd_map: cmd_map} = state),
@@ -307,7 +366,7 @@ defmodule Mailroom.IMAP do
   defp process_command_response(cmd_tag, %{command: "STATUS", caller: caller}, _msg, %{temp: temp} = state),
     do: send_reply(caller, temp, remove_command_from_state(state, cmd_tag))
   defp process_command_response(cmd_tag, %{command: "FETCH", caller: caller}, _msg, %{temp: temp} = state),
-    do: send_reply(caller, temp, remove_command_from_state(state, cmd_tag))
+    do: send_reply(caller, Enum.reverse(temp), remove_command_from_state(state, cmd_tag))
   defp process_command_response(cmd_tag, %{command: "CAPABILITY", caller: caller}, msg, %{temp: temp} = state),
     do: send_reply(caller, temp || msg, %{remove_command_from_state(state, cmd_tag) | state: :authenticated, temp: nil})
   defp process_command_response(cmd_tag, %{command: "CLOSE", caller: caller}, msg, state),
@@ -333,6 +392,24 @@ defmodule Mailroom.IMAP do
     %{state | cmd_number: cmd_number + 1, cmd_map: Map.put_new(cmd_map, cmd_tag, %{command: hd(List.wrap(command)), caller: caller})}
   end
 
+  defp fetch_all_data(bytes, bytes, acc, state),
+    do: :erlang.iolist_to_binary(Enum.reverse([get_next_line(state) | acc]))
+  defp fetch_all_data(bytes, bytes_read, acc, state) do
+    line = get_next_line(state)
+    fetch_all_data(bytes, bytes_read + byte_size(line), [line | acc], state)
+  end
+
+  defp get_next_line(%{debug: debug}) do
+    receive do
+      {:ssl, _socket, data} ->
+        if debug, do: IO.write(["> [ssl] ", data])
+        data
+      {:tcp, _socket, data} ->
+        if debug, do: IO.write(["> [tcp] ", data])
+        data
+    end
+  end
+
   defp send_reply(caller, msg, state) do
     GenServer.reply(caller, {:ok, msg})
     {:noreply, state}
@@ -349,4 +426,9 @@ defmodule Mailroom.IMAP do
     do: {name, :r}
   defp parse_mailbox({name, <<"[READ-WRITE]", _rest :: binary>>}),
     do: {name, :rw}
+
+  defp parse_capability(string) do
+    [list | _] = String.split(String.strip(string), "]", parts: 2)
+    String.split(list, " ")
+  end
 end

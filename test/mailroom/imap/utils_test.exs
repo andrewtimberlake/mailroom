@@ -8,14 +8,6 @@ defmodule Mailroom.IMAP.UtilsTest do
       assert parse_list("(one two three)") == {["one", "two", "three"], ""}
     end
 
-    test "with [] brackets" do
-      assert parse_list("[one two three]") == {["one", "two", "three"], ""}
-    end
-
-    test "with no brackets" do
-      assert parse_list("one two three\r\n") == {["one", "two", "three"], "\r\n"}
-    end
-
     test "with empty list" do
       assert parse_list("()") == {[], ""}
     end
@@ -31,11 +23,36 @@ defmodule Mailroom.IMAP.UtilsTest do
     test "with nested empty list" do
       assert parse_list("(one () four)") == {["one", [], "four"], ""}
     end
+
+    test "with doubly nested list" do
+      assert parse_list("(one ((two three)) four)") == {["one", [["two", "three"]], "four"], ""}
+    end
+
+    test "with strings" do
+      assert parse_list("(one \"two three\" four)") == {["one", "two three", "four"], ""}
+    end
+
+    test "with literal string" do
+      assert parse_list("(BODY[TEXT] {8}\r\nTest 1\r\n)\r\n") == {["BODY[TEXT]", "Test 1\r\n"], "\r\n"}
+    end
+
+    test "with NIL" do
+      assert parse_list("(one NIL four)") == {["one", nil, "four"], ""}
+      assert parse_list("(NIL)") == {[nil], ""}
+    end
+
+    test "with extraneous data" do
+      assert parse_list("(one two) three") == {["one", "two"], " three"}
+      assert parse_list("(one two)\r\n") == {["one", "two"], "\r\n"}
+    end
   end
 
   test "parse_list_only/1" do
     assert parse_list_only("(one two)") == ["one", "two"]
-    assert parse_list_only("(one two) three") == ["one", "two"]
+    assert parse_list_only("(one (two three))") == ["one", ["two", "three"]]
+    assert parse_list_only("(one ((two three)))") == ["one", [["two", "three"]]]
+    assert parse_list_only("(one (\"two\" (three)))\r\n") == ["one", ["two", ["three"]]]
+    assert parse_list_only("(one (two) (three))") == ["one", ["two"], ["three"]]
   end
 
   test "parse_string/1" do
@@ -61,6 +78,11 @@ defmodule Mailroom.IMAP.UtilsTest do
 
   test "list_to_status_items/1" do
     assert list_to_status_items(["MESSAGES", "4", "RECENT", "2", "UNSEEN", "1"]) == %{messages: 4, recent: 2, unseen: 1}
+  end
+
+  test "list_to_items/1" do
+    map = list_to_items(["RFC822.SIZE", "3325", "INTERNALDATE", "26-Oct-2016 12:23:20 +0000", "FLAGS", ["Seen"]])
+    assert map == %{rfc822_size: "3325", internal_date: "26-Oct-2016 12:23:20 +0000", flags: ["Seen"]}
   end
 
   describe "parse_number/1" do

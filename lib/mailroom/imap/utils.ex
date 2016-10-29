@@ -1,52 +1,64 @@
 defmodule Mailroom.IMAP.Utils do
 
   def parse_list_only(string) do
-    {list, _} = parse_list(string)
+    {list, _rest} = parse_list(string)
     list
   end
 
-  def parse_list(string, temp \\ nil, acc \\ [])
+  def parse_list(string, depth \\ 0, temp \\ nil, acc \\ nil)
 
-  def parse_list(<<"[", rest :: binary>>, temp, []),
-    do: parse_list(rest, temp, [])
-  def parse_list(<<"[", _rest :: binary>> = string, _temp, acc) do
-    {list, rest} = parse_list(string, nil, [])
-    parse_list(rest, nil, [list | acc])
+  def parse_list(<<"(", rest :: binary>>, depth, _temp, acc) do
+    {list, rest} = parse_list(rest, depth + 1, nil, [])
+    acc = if acc, do: [list | acc], else: list
+    if depth == 0 do
+      {acc, rest}
+    else
+      parse_list(rest, depth, nil, acc)
+    end
   end
-  def parse_list(<<"]", rest :: binary>>, nil, acc),
-    do: {Enum.reverse(acc), rest}
-  def parse_list(<<"]", rest :: binary>>, temp, acc),
-    do: {Enum.reverse([temp | acc]), rest}
 
-  def parse_list(<<"(", rest :: binary>>, temp, []),
-    do: parse_list(rest, temp, [])
-  def parse_list(<<"(", _rest :: binary>> = string, _temp, acc) do
-    {list, rest} = parse_list(string, nil, [])
-    parse_list(rest, nil, [list | acc])
+  def parse_list(<<")", rest :: binary>>, _depth, temp, acc),
+    do: {Enum.reverse(prepend_to_list(acc, temp)), rest}
+
+  def parse_list(<<"\"", _rest :: binary>> = string, depth, _temp, acc) do
+    {string, rest} = parse_string(string)
+    parse_list(rest, depth, string, acc)
   end
-  def parse_list(<<")", rest :: binary>>, nil, acc),
-    do: {Enum.reverse(acc), rest}
-  def parse_list(<<")", rest :: binary>>, temp, acc),
-    do: {Enum.reverse([temp | acc]), rest}
 
-  def parse_list(<<"\r", _rest :: binary>> = string, nil, acc),
-    do: {Enum.reverse(acc), string}
-  def parse_list(<<"\r", _rest :: binary>> = string, temp, acc),
-    do: {Enum.reverse([temp | acc]), string}
+  def parse_list(<<"{", rest :: binary>>, depth, _temp, acc) do
+    {octets, <<"\r\n", rest :: binary>>} = read_until(rest, "}")
+    octets = String.to_integer(octets)
+    <<string :: binary-size(octets), rest :: binary>> = rest
+    parse_list(rest, depth, nil, prepend_to_list(acc, string))
+  end
 
-  def parse_list(<<" ", rest :: binary>>, nil, acc),
-    do: parse_list(rest, nil, acc)
-  def parse_list(<<" ", rest :: binary>>, temp, acc),
-    do: parse_list(rest, nil, [temp | acc])
-  def parse_list(<<char :: utf8, rest :: binary>>, nil, acc),
-    do: parse_list(rest, <<char>>, acc)
-  def parse_list(<<char :: utf8, rest :: binary>>, temp, acc),
-    do: parse_list(rest, <<temp :: binary, char>>, acc)
+  def parse_list(<<" ", rest :: binary>>, depth, nil, acc),
+    do: parse_list(rest, depth, nil, acc)
+  def parse_list(<<"\r", rest :: binary>>, depth, temp, acc),
+    do: parse_list(rest, depth, "\r", prepend_to_list(acc, temp))
+  def parse_list(<<" ", rest :: binary>>, depth, temp, acc),
+    do: parse_list(rest, depth, nil, prepend_to_list(acc, temp))
+  def parse_list(<<char :: utf8, rest :: binary>>, depth, nil, acc),
+    do: parse_list(rest, depth, <<char>>, acc)
+  def parse_list(<<char :: utf8, rest :: binary>>, depth, temp, acc),
+    do: parse_list(rest, depth, <<temp :: binary, char >>, acc)
+
+  defp prepend_to_list(nil, item), do: List.wrap(item)
+  defp prepend_to_list(list, nil), do: list
+  defp prepend_to_list(nil, "NIL"), do: [nil]
+  defp prepend_to_list(list, "NIL"), do: [nil | list]
+  defp prepend_to_list(list, item), do: [item | list]
 
   def parse_string_only(string) do
     {string, _} = parse_string(string)
     string
   end
+
+  defp read_until(string, char, acc \\ [])
+  defp read_until(<<until, rest :: binary>>, <<until>>, acc),
+    do: {:erlang.iolist_to_binary(Enum.reverse(acc)), rest}
+  defp read_until(<<char, rest :: binary>>, until, acc),
+    do: read_until(rest, until, [char | acc])
 
   def parse_string(string),
     do: do_parse_string(String.next_grapheme(string), false, [])
@@ -109,6 +121,12 @@ defmodule Mailroom.IMAP.Utils do
     defp item_to_string(unquote(atom)), do: unquote(string)
     defp item_to_atom(unquote(string)), do: unquote(atom)
   end)
+  defp item_to_atom(string), do: string
+
+  def list_to_items(list, acc \\ %{})
+  def list_to_items([], acc), do: acc
+  def list_to_items([item, value | tail], acc),
+    do: list_to_items(tail, Map.put_new(acc, item_to_atom(item), value))
 
   def list_to_status_items(list, acc \\ %{})
   def list_to_status_items([], acc), do: acc
