@@ -109,6 +109,15 @@ defmodule Mailroom.IMAP do
     end
   end
 
+  def remove_flags(pid, number_or_range, flags, opts \\ []),
+    do: GenServer.call(pid, {:remove_flags, number_or_range, flags, opts}) && pid
+
+  def add_flags(pid, number_or_range, flags, opts \\ []),
+    do: GenServer.call(pid, {:add_flags, number_or_range, flags, opts}) && pid
+
+  def set_flags(pid, number_or_range, flags, opts \\ []),
+    do: GenServer.call(pid, {:set_flags, number_or_range, flags, opts}) && pid
+
   def close(pid),
     do: GenServer.call(pid, :close)
 
@@ -168,6 +177,22 @@ defmodule Mailroom.IMAP do
     do: handle_call({:fetch, [Integer.to_string(first), ":", Integer.to_string(last)], items}, from, state)
   def handle_call({:fetch, sequence, items}, from, state),
     do: {:noreply, send_command(from, ["FETCH", " ", sequence, " ", items_to_list(items)], %{state | temp: []})}
+
+  [remove_flags: "-FLAGS", add_flags: "+FLAGS", set_flags: "FLAGS"]
+  |> Enum.each(fn({func_name, command}) ->
+    def handle_call({unquote(func_name), sequence, flags, opts}, from, state) when is_integer(sequence),
+      do: handle_call({unquote(func_name), Integer.to_string(sequence), flags, opts}, from, state)
+    def handle_call({unquote(func_name), %Range{first: first, last: last}, flags, opts}, from, state),
+      do: handle_call({unquote(func_name), [Integer.to_string(first), ":", Integer.to_string(last)], flags, opts}, from, state)
+    def handle_call({unquote(func_name), sequence, flags, opts}, from, state),
+      do: {:noreply, send_command(from, ["STORE", " ", sequence, " ", unquote(command), store_silent(opts), " ", flags_to_list(flags)], %{state | temp: []})}
+  end)
+
+  defp store_silent([]), do: ""
+  defp store_silent([{:silent, _} | _tail]),
+    do: ".SILENT"
+  defp store_silent([_ | tail]),
+    do: store_silent(tail)
 
   def handle_call(:close, from, state),
     do: {:noreply, send_command(from, "CLOSE", state)}
@@ -366,6 +391,8 @@ defmodule Mailroom.IMAP do
   defp process_command_response(cmd_tag, %{command: "STATUS", caller: caller}, _msg, %{temp: temp} = state),
     do: send_reply(caller, temp, remove_command_from_state(state, cmd_tag))
   defp process_command_response(cmd_tag, %{command: "FETCH", caller: caller}, _msg, %{temp: temp} = state),
+    do: send_reply(caller, Enum.reverse(temp), remove_command_from_state(state, cmd_tag))
+  defp process_command_response(cmd_tag, %{command: "STORE", caller: caller}, _msg, %{temp: temp} = state),
     do: send_reply(caller, Enum.reverse(temp), remove_command_from_state(state, cmd_tag))
   defp process_command_response(cmd_tag, %{command: "CAPABILITY", caller: caller}, msg, %{temp: temp} = state),
     do: send_reply(caller, temp || msg, %{remove_command_from_state(state, cmd_tag) | state: :authenticated, temp: nil})

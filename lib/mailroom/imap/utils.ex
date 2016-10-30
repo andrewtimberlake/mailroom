@@ -133,6 +133,34 @@ defmodule Mailroom.IMAP.Utils do
   def list_to_status_items([item, count | tail], acc),
     do: list_to_status_items(tail, Map.put_new(acc, item_to_atom(item), parse_number(count)))
 
+  def flags_to_list(list, acc \\ [])
+  def flags_to_list([], [" " | acc]),
+    do: Enum.reverse([")" | acc])
+  def flags_to_list(list, []),
+    do: flags_to_list(list, ["("])
+  def flags_to_list([head | tail], acc),
+    do: flags_to_list(tail, [" ", flag_to_string(head) | acc])
+  def flags_to_list(non_list, acc),
+    do: flags_to_list(List.wrap(non_list), acc)
+
+  defp flag_to_string(string) when is_binary(string), do: string
+  [
+    seen: "\\Seen",
+    answered: "\\Answered",
+    flagged: "\\Flagged",
+    deleted: "\\Deleted",
+    draft: "\\Draft",
+    recent: "\\Recent"
+  ]
+  |> Enum.each(fn({atom, string}) ->
+    defp flag_to_string(unquote(atom)), do: unquote(string)
+    defp flag_to_atom(unquote(string)), do: unquote(atom)
+  end)
+  defp flag_to_atom(string), do: string
+
+  def list_to_flags(list),
+    do: Enum.map(list, &flag_to_atom/1)
+
   def parse_number(string, acc \\ "")
   0..9
   |> Enum.map(&Integer.to_string/1)

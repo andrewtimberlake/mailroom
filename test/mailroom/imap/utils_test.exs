@@ -85,6 +85,15 @@ defmodule Mailroom.IMAP.UtilsTest do
     assert map == %{rfc822_size: "3325", internal_date: "26-Oct-2016 12:23:20 +0000", flags: ["Seen"]}
   end
 
+  test "flags_to_list/1" do
+    assert flags_to_list(["\\Seen", "\\Answered"]) == ["(", "\\Seen", " ", "\\Answered", ")"]
+    assert flags_to_list([:seen, :answered, :flagged, :deleted, :draft, :recent]) == ["(", "\\Seen", " ", "\\Answered", " ", "\\Flagged", " ", "\\Deleted", " ", "\\Draft", " ", "\\Recent", ")"]
+  end
+
+  test "list_to_flags/1" do
+    assert list_to_flags(["\\Seen", "\\Answered", "\\Flagged", "\\Deleted", "\\Draft", "\\Recent", "Other"]) == [:seen, :answered, :flagged, :deleted, :draft, :recent, "Other"]
+  end
+
   describe "parse_number/1" do
     test "with a single digit" do
       assert parse_number("1") == 1
