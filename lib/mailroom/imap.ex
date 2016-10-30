@@ -171,22 +171,19 @@ defmodule Mailroom.IMAP do
   def handle_call({:status, mailbox_name, items}, from, state),
     do: {:noreply, send_command(from, ["STATUS", " ", quote_string(mailbox_name), " ", items_to_list(items)], state)}
 
-  def handle_call({:fetch, sequence, items}, from, state) when is_integer(sequence),
-    do: handle_call({:fetch, Integer.to_string(sequence), items}, from, state)
-  def handle_call({:fetch, %Range{first: first, last: last}, items}, from, state),
-    do: handle_call({:fetch, [Integer.to_string(first), ":", Integer.to_string(last)], items}, from, state)
   def handle_call({:fetch, sequence, items}, from, state),
-    do: {:noreply, send_command(from, ["FETCH", " ", sequence, " ", items_to_list(items)], %{state | temp: []})}
+    do: {:noreply, send_command(from, ["FETCH", " ", to_sequence(sequence), " ", items_to_list(items)], %{state | temp: []})}
 
   [remove_flags: "-FLAGS", add_flags: "+FLAGS", set_flags: "FLAGS"]
   |> Enum.each(fn({func_name, command}) ->
-    def handle_call({unquote(func_name), sequence, flags, opts}, from, state) when is_integer(sequence),
-      do: handle_call({unquote(func_name), Integer.to_string(sequence), flags, opts}, from, state)
-    def handle_call({unquote(func_name), %Range{first: first, last: last}, flags, opts}, from, state),
-      do: handle_call({unquote(func_name), [Integer.to_string(first), ":", Integer.to_string(last)], flags, opts}, from, state)
     def handle_call({unquote(func_name), sequence, flags, opts}, from, state),
-      do: {:noreply, send_command(from, ["STORE", " ", sequence, " ", unquote(command), store_silent(opts), " ", flags_to_list(flags)], %{state | temp: []})}
+      do: {:noreply, send_command(from, ["STORE", " ", to_sequence(sequence), " ", unquote(command), store_silent(opts), " ", flags_to_list(flags)], %{state | temp: []})}
   end)
+
+  defp to_sequence(number) when is_integer(number),
+    do: Integer.to_string(number)
+  defp to_sequence(%Range{first: first, last: last}),
+    do: [Integer.to_string(first), ":", Integer.to_string(last)]
 
   defp store_silent([]), do: ""
   defp store_silent([{:silent, _} | _tail]),
