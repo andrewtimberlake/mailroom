@@ -119,13 +119,16 @@ defmodule Mailroom.IMAP do
     do: GenServer.call(pid, {:set_flags, number_or_range, flags, opts}) && pid
 
   def copy(pid, sequence, mailbox_name),
-    do: GenServer.call(pid, {:copy, sequence, mailbox_name})
+    do: GenServer.call(pid, {:copy, sequence, mailbox_name}) && pid
+
+  def expunge(pid),
+    do: GenServer.call(pid, :expunge) && pid
 
   def close(pid),
-    do: GenServer.call(pid, :close)
+    do: GenServer.call(pid, :close) && pid
 
   def logout(pid),
-    do: GenServer.call(pid, :logout)
+    do: GenServer.call(pid, :logout) && pid
 
   def email_count(pid),
     do: GenServer.call(pid, :email_count)
@@ -185,6 +188,9 @@ defmodule Mailroom.IMAP do
 
   def handle_call({:copy, sequence, mailbox_name}, from, state),
     do: {:noreply, send_command(from, ["COPY", " ", to_sequence(sequence), " ", quote_string(mailbox_name)], state)}
+
+  def handle_call(:expunge, from, state),
+    do: {:noreply, send_command(from, "EXPUNGE", state)}
 
   def handle_call(:close, from, state),
     do: {:noreply, send_command(from, "CLOSE", state)}
@@ -261,6 +267,7 @@ defmodule Mailroom.IMAP do
     state = case String.split(msg, " ", parts: 3) do
               [number, "EXISTS\r\n"] -> %{state | exists: String.to_integer(number)}
               [number, "RECENT\r\n"] -> %{state | recent: String.to_integer(number)}
+              [number, "EXPUNGE\r\n"] -> %{state | exists: state.exists - 1}
               [number, "FETCH", rest] ->
                 data = case Regex.run(~r/(.+ {(\d+)}\r\n)$/, rest) do
                          [_, initial, bytes] ->
@@ -400,6 +407,8 @@ defmodule Mailroom.IMAP do
   defp process_command_response(cmd_tag, %{command: "CAPABILITY", caller: caller}, msg, %{temp: temp} = state),
     do: send_reply(caller, temp || msg, remove_command_from_state(state, cmd_tag))
   defp process_command_response(cmd_tag, %{command: "COPY", caller: caller}, msg, state),
+    do: send_reply(caller, msg, remove_command_from_state(state, cmd_tag))
+  defp process_command_response(cmd_tag, %{command: "EXPUNGE", caller: caller}, msg, state),
     do: send_reply(caller, msg, remove_command_from_state(state, cmd_tag))
   defp process_command_response(cmd_tag, %{command: "CLOSE", caller: caller}, msg, state),
     do: send_reply(caller, msg, %{remove_command_from_state(state, cmd_tag) | state: :authenticated, mailbox: nil})
