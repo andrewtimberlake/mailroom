@@ -47,7 +47,7 @@ defmodule Mailroom.Mixfile do
     [
       {:timex, "~> 3.1.0", optional: true},
       # DEV
-      {:credo, "~> 0.4.0", only: :dev},
+      {:credo, "~> 0.5.0", only: :dev},
       # Docs
       {:ex_doc, "~> 0.14.0", only: [:dev, :docs]},
       {:earmark, "~> 1.0.0", only: [:dev, :docs]},
