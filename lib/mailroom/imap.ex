@@ -118,6 +118,9 @@ defmodule Mailroom.IMAP do
   def set_flags(pid, number_or_range, flags, opts \\ []),
     do: GenServer.call(pid, {:set_flags, number_or_range, flags, opts}) && pid
 
+  def copy(pid, sequence, mailbox_name),
+    do: GenServer.call(pid, {:copy, sequence, mailbox_name})
+
   def close(pid),
     do: GenServer.call(pid, :close)
 
@@ -180,16 +183,8 @@ defmodule Mailroom.IMAP do
       do: {:noreply, send_command(from, ["STORE", " ", to_sequence(sequence), " ", unquote(command), store_silent(opts), " ", flags_to_list(flags)], %{state | temp: []})}
   end)
 
-  defp to_sequence(number) when is_integer(number),
-    do: Integer.to_string(number)
-  defp to_sequence(%Range{first: first, last: last}),
-    do: [Integer.to_string(first), ":", Integer.to_string(last)]
-
-  defp store_silent([]), do: ""
-  defp store_silent([{:silent, _} | _tail]),
-    do: ".SILENT"
-  defp store_silent([_ | tail]),
-    do: store_silent(tail)
+  def handle_call({:copy, sequence, mailbox_name}, from, state),
+    do: {:noreply, send_command(from, ["COPY", " ", to_sequence(sequence), " ", quote_string(mailbox_name)], state)}
 
   def handle_call(:close, from, state),
     do: {:noreply, send_command(from, "CLOSE", state)}
@@ -344,6 +339,17 @@ defmodule Mailroom.IMAP do
       do: datetime
   end
 
+  defp to_sequence(number) when is_integer(number),
+    do: Integer.to_string(number)
+  defp to_sequence(%Range{first: first, last: last}),
+    do: [Integer.to_string(first), ":", Integer.to_string(last)]
+
+  defp store_silent([]), do: ""
+  defp store_silent([{:silent, _} | _tail]),
+    do: ".SILENT"
+  defp store_silent([_ | tail]),
+    do: store_silent(tail)
+
   defp process_connection_message(<<"[CAPABILITY ", msg :: binary>>, state),
     do: %{state | capability: parse_capability(msg)}
   defp process_connection_message(_msg, state), do: state
@@ -392,7 +398,9 @@ defmodule Mailroom.IMAP do
   defp process_command_response(cmd_tag, %{command: "STORE", caller: caller}, _msg, %{temp: temp} = state),
     do: send_reply(caller, Enum.reverse(temp), remove_command_from_state(state, cmd_tag))
   defp process_command_response(cmd_tag, %{command: "CAPABILITY", caller: caller}, msg, %{temp: temp} = state),
-    do: send_reply(caller, temp || msg, %{remove_command_from_state(state, cmd_tag) | state: :authenticated, temp: nil})
+    do: send_reply(caller, temp || msg, remove_command_from_state(state, cmd_tag))
+  defp process_command_response(cmd_tag, %{command: "COPY", caller: caller}, msg, state),
+    do: send_reply(caller, msg, remove_command_from_state(state, cmd_tag))
   defp process_command_response(cmd_tag, %{command: "CLOSE", caller: caller}, msg, state),
     do: send_reply(caller, msg, %{remove_command_from_state(state, cmd_tag) | state: :authenticated, mailbox: nil})
   defp process_command_response(cmd_tag, %{command: command}, msg, state) do
