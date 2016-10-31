@@ -180,4 +180,18 @@ defmodule Mailroom.IMAP.Utils do
     do: do_quote_string(String.next_grapheme(rest), [grapheme | acc])
   defp do_quote_string(nil, acc),
     do: IO.iodata_to_binary(Enum.reverse(["\"" | acc]))
+
+  if Code.ensure_compiled?(Timex) do
+    def parse_datetime(datetime) do
+      with {:error, _} <- Timex.parse(datetime, "{RFC822}"),
+           {:error, _} <- Timex.parse(datetime, "{D}-{Mshort}-{YYYY} {h24}:{m}:{s} {Z}") do
+        {:error, "Unable to parse #{datetime}"}
+      else
+        {:ok, datetime} -> datetime
+      end
+    end
+  else
+    def parse_datetime(datetime),
+      do: datetime
+  end
 end

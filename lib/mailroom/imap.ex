@@ -3,6 +3,7 @@ defmodule Mailroom.IMAP do
   use GenServer
 
   import Mailroom.IMAP.Utils
+  alias Mailroom.Envelope
 
   defmodule State do
     @moduledoc false
@@ -267,7 +268,7 @@ defmodule Mailroom.IMAP do
     state = case String.split(msg, " ", parts: 3) do
               [number, "EXISTS\r\n"] -> %{state | exists: String.to_integer(number)}
               [number, "RECENT\r\n"] -> %{state | recent: String.to_integer(number)}
-              [number, "EXPUNGE\r\n"] -> %{state | exists: state.exists - 1}
+              [_number, "EXPUNGE\r\n"] -> %{state | exists: state.exists - 1}
               [number, "FETCH", rest] ->
                 data = case Regex.run(~r/(.+ {(\d+)}\r\n)$/, rest) do
                          [_, initial, bytes] ->
@@ -308,43 +309,10 @@ defmodule Mailroom.IMAP do
     do: {:internal_date, parse_datetime(datetime)}
   defp parse_fetch_item(:uid, datetime),
     do: {:uid, parse_number(datetime)}
-  defp parse_fetch_item(:envelope, envelope) do
-    [date, subject, from, sender, reply_to, to, cc, bcc, in_reply_to, message_id] = envelope
-    {:envelope, %{date: parse_datetime(date),
-                  subject: subject,
-                  from: parse_addresses(from),
-                  sender: parse_addresses(sender),
-                  reply_to: parse_addresses(reply_to),
-                  to: parse_addresses(to),
-                  cc: parse_addresses(cc),
-                  bcc: parse_addresses(bcc),
-                  in_reply_to: parse_addresses(in_reply_to),
-                  message_id: message_id}}
-  end
+  defp parse_fetch_item(:envelope, envelope),
+    do: {:envelope, Envelope.parse_imap_envelope(envelope)}
   defp parse_fetch_item(key, value),
     do: {key, value}
-
-  defp parse_addresses(nil), do: []
-  defp parse_addresses([]), do: []
-  defp parse_addresses(values) do
-    Enum.map(values, fn([name, _smtp_source_route, mailbox_name, host_name]) ->
-      {name, "#{mailbox_name}@#{host_name}"}
-    end)
-  end
-
-  if Code.ensure_compiled?(Timex) do
-    defp parse_datetime(datetime) do
-      with {:error, _} <- Timex.parse(datetime, "{RFC822}"),
-           {:error, _} <- Timex.parse(datetime, "{D}-{Mshort}-{YYYY} {h24}:{m}:{s} {Z}") do
-        {:error, "Unable to parse #{datetime}"}
-      else
-        {:ok, datetime} -> datetime
-      end
-    end
-  else
-    defp parse_datetime(datetime),
-      do: datetime
-  end
 
   defp to_sequence(number) when is_integer(number),
     do: Integer.to_string(number)

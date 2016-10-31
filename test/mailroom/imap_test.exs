@@ -2,7 +2,7 @@ defmodule Mailroom.IMAPTest do
   use ExUnit.Case, async: true
   doctest Mailroom.IMAP
 
-  alias Mailroom.{IMAP,TestServer}
+  alias Mailroom.{IMAP,TestServer,Envelope}
 
   @debug false
 
@@ -343,16 +343,16 @@ defmodule Mailroom.IMAPTest do
       |> IMAP.select(:inbox)
       |> IMAP.fetch(1, :envelope)
 
-    assert msgs == [{1, %{envelope: %{date: Timex.parse!("Wed, 26 Oct 2016 14:23:14 +0200", "{RFC822}"),
-                                      subject: "Test 1",
-                                      from: [{"John Doe", "john@example.com"}],
-                                      sender: [{"John Doe", "john@example.com"}],
-                                      reply_to: [{"John Doe", "john@example.com"}],
-                                      to: [{nil, "dev@debtflow.co.za"}],
-                                      cc: [],
-                                      bcc: [],
-                                      in_reply_to: [],
-                                      message_id: "<B042B704-E13E-44A2-8FEC-67A43B6DD6DB@example.com>"}}}]
+    assert msgs == [{1, %{envelope: %Envelope{date: Timex.parse!("Wed, 26 Oct 2016 14:23:14 +0200", "{RFC822}"),
+                                              subject: "Test 1",
+                                              from: [{"John Doe", "john", "example.com"}],
+                                              sender: [{"John Doe", "john", "example.com"}],
+                                              reply_to: [{"John Doe", "john", "example.com"}],
+                                              to: [{nil, "dev", "debtflow.co.za"}],
+                                              cc: [],
+                                              bcc: [],
+                                              in_reply_to: [],
+                                              message_id: "<B042B704-E13E-44A2-8FEC-67A43B6DD6DB@example.com>"}}}]
     IMAP.logout(client)
   end
 
