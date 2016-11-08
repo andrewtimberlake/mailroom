@@ -246,6 +246,85 @@ defmodule Mailroom.IMAPTest do
     IMAP.logout(client)
   end
 
+  test "SEARCH" do
+    server = TestServer.start(ssl: true)
+    TestServer.expect(server, fn(expectations) ->
+      expectations
+      |> TestServer.on(:connect,    "* OK IMAP ready\r\n")
+      |> TestServer.on("A001 LOGIN \"test@example.com\" \"P@55w0rD\"\r\n", [
+            "* CAPABILITY (IMAPrev4)\r\n",
+            "A001 OK test@example.com authenticated (Success)\r\n"])
+      |> TestServer.on("A002 SELECT INBOX\r\n",    [
+            "* FLAGS (\\Flagged \\Draft \\Deleted \\Seen)\r\n",
+            "* OK [PERMANENTFLAGS (\\Flagged \\Draft \\Deleted \\Seen \\*)] Flags permitted\r\n",
+            "* 2 EXISTS\r\n",
+            "* 1 RECENT\r\n",
+            "A002 OK [READ-WRITE] INBOX selected. (Success)\r\n"])
+      |> TestServer.on("A003 SEARCH UNSEEN\r\n", [
+            "* SEARCH 1 2 4 6 7\r\n",
+            "A003 OK Success\r\n"])
+      |> TestServer.on("A004 LOGOUT\r\n", [
+            "* BYE We're out of here\r\n",
+            "A004 OK Logged out\r\n"])
+    end)
+
+    assert {:ok, client} = IMAP.connect(server.address, "test@example.com", "P@55w0rD", port: server.port, ssl: true, debug: @debug)
+    {:ok, msgs} =
+      client
+      |> IMAP.select(:inbox)
+      |> IMAP.search("UNSEEN")
+    assert msgs == [1, 2, 4, 6, 7]
+    IMAP.logout(client)
+  end
+
+  test "SEARCH with enumerator function" do
+    server = TestServer.start(ssl: true)
+    TestServer.expect(server, fn(expectations) ->
+      expectations
+      |> TestServer.on(:connect,    "* OK IMAP ready\r\n")
+      |> TestServer.on("A001 LOGIN \"test@example.com\" \"P@55w0rD\"\r\n", [
+            "* CAPABILITY (IMAPrev4)\r\n",
+            "A001 OK test@example.com authenticated (Success)\r\n"])
+      |> TestServer.on("A002 SELECT INBOX\r\n",    [
+            "* FLAGS (\\Flagged \\Draft \\Deleted \\Seen)\r\n",
+            "* OK [PERMANENTFLAGS (\\Flagged \\Draft \\Deleted \\Seen \\*)] Flags permitted\r\n",
+            "* 2 EXISTS\r\n",
+            "* 1 RECENT\r\n",
+            "A002 OK [READ-WRITE] INBOX selected. (Success)\r\n"])
+      |> TestServer.on("A003 SEARCH UNSEEN\r\n", [
+            "* SEARCH 1 2 4 6 7\r\n",
+            "A003 OK Success\r\n"])
+      |> TestServer.on("A004 FETCH 1:2 (UID)\r\n", [
+            "* 1 FETCH (UID 46)\r\n",
+            "* 2 FETCH (UID 47)\r\n",
+            "A004 OK Success\r\n"])
+      |> TestServer.on("A005 FETCH 4 (UID)\r\n", [
+            "* 4 FETCH (UID 49)\r\n",
+            "A005 OK Success\r\n"])
+      |> TestServer.on("A006 FETCH 6:7 (UID)\r\n", [
+            "* 6 FETCH (UID 51)\r\n",
+            "* 7 FETCH (UID 52)\r\n",
+            "A006 OK Success\r\n"])
+      |> TestServer.on("A007 LOGOUT\r\n", [
+            "* BYE We're out of here\r\n",
+            "A007 OK Logged out\r\n"])
+    end)
+
+    assert {:ok, client} = IMAP.connect(server.address, "test@example.com", "P@55w0rD", port: server.port, ssl: true, debug: @debug)
+    client
+    |> IMAP.select(:inbox)
+    |> IMAP.search("UNSEEN", :uid, fn(msg) ->
+      send self, msg
+    end)
+    |> IMAP.logout
+
+    assert_received {1, %{uid: 46}}
+    assert_received {2, %{uid: 47}}
+    assert_received {4, %{uid: 49}}
+    assert_received {6, %{uid: 51}}
+    assert_received {7, %{uid: 52}}
+  end
+
   test "FETCH request multiple items per message" do
     server = TestServer.start(ssl: true)
     TestServer.expect(server, fn(expectations) ->

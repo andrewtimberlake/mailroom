@@ -110,6 +110,24 @@ defmodule Mailroom.IMAP do
     end
   end
 
+  def search(pid, query, items_list \\ nil, func \\ nil) do
+    {:ok, list} = GenServer.call(pid, {:search, query})
+    if func do
+      list
+      |> numbers_to_sequences
+      |> Enum.reduce([], fn(number_or_range, acc) ->
+        {:ok, list} = fetch(pid, number_or_range, items_list)
+        [list | acc]
+      end)
+      |> Enum.reverse
+      |> List.flatten
+      |> Enum.each(func)
+      pid
+    else
+      {:ok, list}
+    end
+  end
+
   def remove_flags(pid, number_or_range, flags, opts \\ []),
     do: GenServer.call(pid, {:remove_flags, number_or_range, flags, opts}) && pid
 
@@ -180,6 +198,9 @@ defmodule Mailroom.IMAP do
 
   def handle_call({:fetch, sequence, items}, from, state),
     do: {:noreply, send_command(from, ["FETCH", " ", to_sequence(sequence), " ", items_to_list(items)], %{state | temp: []})}
+
+  def handle_call({:search, query}, from, state),
+    do: {:noreply, send_command(from, ["SEARCH", " ", query], %{state | temp: []})}
 
   [remove_flags: "-FLAGS", add_flags: "+FLAGS", set_flags: "FLAGS"]
   |> Enum.each(fn({func_name, command}) ->
@@ -262,6 +283,14 @@ defmodule Mailroom.IMAP do
   end
   defp handle_response(<<"* FLAGS ", msg :: binary>>, state),
     do: {:noreply, %{state | flags: parse_list_only(msg)}}
+  defp handle_response(<<"* SEARCH ", msg :: binary>>, %{temp: temp} = state) do
+    sequence_numbers =
+      msg
+      |> String.strip
+      |> String.split(" ")
+      |> Enum.map(&String.to_integer/1)
+    {:noreply, %{state | temp: sequence_numbers}}
+  end
   defp handle_response(<<"* BYE ", _msg :: binary>>, state),
     do: {:noreply, state}
   defp handle_response(<<"* ", msg :: binary>>, state) do
@@ -370,6 +399,8 @@ defmodule Mailroom.IMAP do
     do: send_reply(caller, temp, remove_command_from_state(state, cmd_tag))
   defp process_command_response(cmd_tag, %{command: "FETCH", caller: caller}, _msg, %{temp: temp} = state),
     do: send_reply(caller, Enum.reverse(temp), remove_command_from_state(state, cmd_tag))
+  defp process_command_response(cmd_tag, %{command: "SEARCH", caller: caller}, _msg, %{temp: temp} = state),
+    do: send_reply(caller, temp, remove_command_from_state(state, cmd_tag))
   defp process_command_response(cmd_tag, %{command: "STORE", caller: caller}, _msg, %{temp: temp} = state),
     do: send_reply(caller, Enum.reverse(temp), remove_command_from_state(state, cmd_tag))
   defp process_command_response(cmd_tag, %{command: "CAPABILITY", caller: caller}, msg, %{temp: temp} = state),

@@ -194,4 +194,23 @@ defmodule Mailroom.IMAP.Utils do
     def parse_datetime(datetime),
       do: datetime
   end
+
+  def numbers_to_sequences([]), do: []
+  def numbers_to_sequences(list) do
+    list
+    |> Enum.sort
+    |> Enum.uniq
+    |> do_numbers_to_sequences(nil, [])
+  end
+
+  defp do_numbers_to_sequences([], temp, acc),
+    do: [temp | acc] |> Enum.reverse
+  defp do_numbers_to_sequences([number | tail], nil, acc),
+    do: do_numbers_to_sequences(tail, number, acc)
+  defp do_numbers_to_sequences([number | tail], temp, acc) when number - 1 == temp,
+    do: do_numbers_to_sequences(tail, temp..number, acc)
+  defp do_numbers_to_sequences([number | tail], %Range{first: first, last: last}, acc) when number - 1 == last,
+    do: do_numbers_to_sequences(tail, first..number, acc)
+  defp do_numbers_to_sequences(list, temp, acc),
+    do: do_numbers_to_sequences(list, nil, [temp | acc])
 end

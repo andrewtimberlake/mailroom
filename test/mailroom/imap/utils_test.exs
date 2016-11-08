@@ -116,4 +116,14 @@ defmodule Mailroom.IMAP.UtilsTest do
     assert quote_string("str ing") == "\"str ing\""
     assert quote_string("str\"ing") == "\"str\\\"ing\""
   end
+
+  test "numbers_to_sequences/1" do
+    assert numbers_to_sequences([]) == []
+    assert numbers_to_sequences([1,2,4]) == [1..2, 4]
+    assert numbers_to_sequences([1,4,2]) == [1..2, 4]
+    assert numbers_to_sequences([1,2,3,4,7,9,11,22,23,24,25,26,30]) == [1..4, 7, 9, 11, 22..26, 30]
+    assert numbers_to_sequences([1,2,3,4,7,9,11,22,23,24,25,26,30,45,46]) == [1..4, 7, 9, 11, 22..26, 30, 45..46]
+    assert numbers_to_sequences([1,3,5,7,9,2,4,6,8,10]) == [1..10]
+    assert numbers_to_sequences([1,3,5,7,9,2,4,6,8,10,1,3,5,7,9]) == [1..10]
+  end
 end
