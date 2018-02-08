@@ -43,7 +43,7 @@ defmodule Mailroom.SMTP do
   end
 
   defp try_ehlo(socket) do
-    Socket.send(socket, ["EHLO ", fqdn, "\r\n"])
+    Socket.send(socket, ["EHLO ", fqdn(), "\r\n"])
     {:ok, lines} = read_potentially_multiline_response(socket)
     case hd(lines) do
       {"500", _} -> :error
@@ -53,7 +53,7 @@ defmodule Mailroom.SMTP do
   end
 
   defp send_helo(socket) do
-    Socket.send(socket, ["HELO ", fqdn, "\r\n"])
+    Socket.send(socket, ["HELO ", fqdn(), "\r\n"])
     {:ok, data} = Socket.recv(socket)
     parse_smtp_response(data)
   end

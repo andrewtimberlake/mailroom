@@ -283,10 +283,10 @@ defmodule Mailroom.IMAP do
   end
   defp handle_response(<<"* FLAGS ", msg :: binary>>, state),
     do: {:noreply, %{state | flags: parse_list_only(msg)}}
-  defp handle_response(<<"* SEARCH ", msg :: binary>>, %{temp: temp} = state) do
+  defp handle_response(<<"* SEARCH ", msg :: binary>>, %{temp: _temp} = state) do
     sequence_numbers =
       msg
-      |> String.strip
+      |> String.trim()
       |> String.split(" ")
       |> Enum.map(&String.to_integer/1)
     {:noreply, %{state | temp: sequence_numbers}}
@@ -456,7 +456,7 @@ defmodule Mailroom.IMAP do
   end
 
   defp send_error(caller, err_msg, state) do
-    GenServer.reply(caller, {:error, String.strip(err_msg)})
+    GenServer.reply(caller, {:error, String.trim(err_msg)})
     {:noreply, state}
   end
 
@@ -468,7 +468,7 @@ defmodule Mailroom.IMAP do
     do: {name, :rw}
 
   defp parse_capability(string) do
-    [list | _] = String.split(String.strip(string), "]", parts: 2)
+    [list | _] = String.split(String.trim(string), "]", parts: 2)
     String.split(list, " ")
   end
 end

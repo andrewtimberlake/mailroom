@@ -314,7 +314,7 @@ defmodule Mailroom.IMAPTest do
     client
     |> IMAP.select(:inbox)
     |> IMAP.search("UNSEEN", :uid, fn(msg) ->
-      send self, msg
+      send self(), msg
     end)
     |> IMAP.logout
 
@@ -386,7 +386,7 @@ defmodule Mailroom.IMAPTest do
     client
     |> IMAP.select(:inbox)
     |> IMAP.fetch(1..2, :uid, fn(msg) ->
-      send self, msg
+      send self(), msg
     end)
     |> IMAP.logout
 

@@ -22,8 +22,8 @@ defmodule Mailroom.Mixfile do
          extras: ["README.md"]
        ]
      end,
-     description: description,
-     package: package
+     description: description(),
+     package: package()
     ]
   end
 
