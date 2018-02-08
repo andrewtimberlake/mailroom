@@ -45,12 +45,12 @@ defmodule Mailroom.Mixfile do
   # Type "mix help deps" for more examples and options
   defp deps do
     [
-      {:timex, "~> 3.1.0", optional: true},
+      {:timex, "~> 3.1", optional: true},
       # DEV
-      {:credo, "~> 0.5.0", only: :dev},
+      {:credo, "~> 0.8", only: :dev},
       # Docs
-      {:ex_doc, "~> 0.14.0", only: [:dev, :docs]},
-      {:earmark, "~> 1.0.0", only: [:dev, :docs]},
+      {:ex_doc, "~> 0.18", only: [:dev, :docs]},
+      {:earmark, "~> 1.2", only: [:dev, :docs]},
     ]
   end
 
