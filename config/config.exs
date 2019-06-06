@@ -28,4 +28,4 @@ use Mix.Config
 # here (which is why it is important to import them last).
 #
 environment_config = Path.join([__DIR__, "#{Mix.env()}.exs"])
-if File.exists?(environment_config), do: import_config(environment_config)
+if File.exists?(environment_config), do: import_config("#{Mix.env()}.exs")

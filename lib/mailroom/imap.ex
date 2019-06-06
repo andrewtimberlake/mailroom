@@ -25,6 +25,7 @@ defmodule Mailroom.IMAP do
               temp: nil,
               mailbox: nil,
               idle_caller: nil,
+              idle_reply_msg: nil,
               idle_timer: nil
   end
 
@@ -127,7 +128,7 @@ defmodule Mailroom.IMAP do
       #…
   """
   def fetch(pid, number_or_range, items_list, func \\ nil) do
-    {:ok, list} = GenServer.call(pid, {:fetch, number_or_range, items_list})
+    {:ok, list} = GenServer.call(pid, {:fetch, number_or_range, items_list}, 60_000)
 
     if func do
       Enum.each(list, func)
@@ -138,7 +139,7 @@ defmodule Mailroom.IMAP do
   end
 
   def search(pid, query, items_list \\ nil, func \\ nil) do
-    {:ok, list} = GenServer.call(pid, {:search, query})
+    {:ok, list} = GenServer.call(pid, {:search, query}, 60_000)
 
     if func do
       list
@@ -154,16 +155,28 @@ defmodule Mailroom.IMAP do
     end
   end
 
-  def each(pid, func) do
-    emails = email_count(pid)
-
-    if emails > 0 do
-      fetch(pid, 1..emails, [:envelope], fn {msg_id, %{envelope: envelope}} ->
-        func.({msg_id, envelope})
+  def each(pid, items_list \\ [:envelope], func) do
+    pid
+    |> email_count
+    |> split_into_ranges(100)
+    |> Enum.each(fn range ->
+      fetch(pid, range, items_list, fn {msg_id, response} ->
+        func.({msg_id, response})
       end)
-    end
+    end)
 
     pid
+  end
+
+  defp split_into_ranges(0, _chunks), do: []
+  defp split_into_ranges(length, chunks, start \\ 0)
+
+  defp split_into_ranges(length, chunks, start) when start + chunks < length do
+    [(start + 1)..(start + chunks) | split_into_ranges(length, chunks, start + chunks)]
+  end
+
+  defp split_into_ranges(length, _chunks, start) do
+    [(start + 1)..length]
   end
 
   def remove_flags(pid, number_or_range, flags, opts \\ []),
@@ -188,6 +201,15 @@ defmodule Mailroom.IMAP do
   def idle(pid, opts \\ []) do
     timeout = Keyword.get(opts, :timeout, 1_500_000)
     GenServer.call(pid, {:idle, timeout}, :infinity) && pid
+  end
+
+  def idle(pid, callback_pid, callback_message, opts \\ []) when is_pid(callback_pid) do
+    timeout = Keyword.get(opts, :timeout, 1_500_000)
+    GenServer.cast(pid, {:idle, timeout, callback_pid, callback_message}) && pid
+  end
+
+  def cancel_idle(pid) do
+    GenServer.call(pid, :cancel_idle) && pid
   end
 
   def close(pid),
@@ -321,6 +343,18 @@ defmodule Mailroom.IMAP do
     {:noreply, send_command(from, "IDLE", %{state | idle_caller: from, idle_timer: timer})}
   end
 
+  def handle_call(
+        :cancel_idle,
+        _from,
+        %{socket: socket, idle_caller: caller, idle_timer: timer} = state
+      ) do
+    if caller do
+      cancel_idle(socket, timer)
+    end
+
+    {:reply, :ok, state}
+  end
+
   def handle_call(:close, from, state),
     do: {:noreply, send_command(from, "CLOSE", state)}
 
@@ -341,6 +375,18 @@ defmodule Mailroom.IMAP do
 
   def handle_call(:state, _from, %{state: connection_state} = state),
     do: {:reply, connection_state, state}
+
+  def handle_cast({:idle, timeout, reply_to, reply_with}, state) do
+    timer = Process.send_after(self(), :idle_timeout, timeout)
+
+    {:noreply,
+     send_command(nil, "IDLE", %{
+       state
+       | idle_caller: reply_to,
+         idle_reply_msg: reply_with,
+         idle_timer: timer
+     })}
+  end
 
   def handle_info({:ssl, _socket, msg}, state) do
     if state.debug, do: IO.write(["> [ssl] ", msg])
@@ -677,10 +723,29 @@ defmodule Mailroom.IMAP do
     })
   end
 
+  defp process_command_response(
+         cmd_tag,
+         %{command: "IDLE"},
+         _msg,
+         %{idle_caller: caller, idle_reply_msg: idle_reply_msg} = state
+       )
+       when not is_nil(idle_reply_msg) do
+    send(caller, idle_reply_msg)
+
+    {:noreply,
+     %{
+       remove_command_from_state(state, cmd_tag)
+       | idle_caller: nil,
+         idle_reply_msg: nil,
+         idle_timer: nil
+     }}
+  end
+
   defp process_command_response(cmd_tag, %{command: "IDLE", caller: caller}, _msg, state) do
     send_reply(caller, :ok, %{
       remove_command_from_state(state, cmd_tag)
       | idle_caller: nil,
+        idle_reply_msg: nil,
         idle_timer: nil
     })
   end
