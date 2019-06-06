@@ -777,6 +777,57 @@ defmodule Mailroom.IMAPTest do
     IMAP.logout(client)
   end
 
+  test "IDLE" do
+    server = TestServer.start(ssl: true)
+
+    TestServer.expect(server, fn expectations ->
+      expectations
+      |> TestServer.on(:connect, "* OK IMAP ready\r\n")
+      |> TestServer.on("A001 LOGIN \"test@example.com\" \"P@55w0rD\"\r\n", [
+        "* CAPABILITY (IMAPrev4 IDLE)\r\n",
+        "A001 OK test@example.com authenticated (Success)\r\n"
+      ])
+      |> TestServer.on("A002 SELECT INBOX\r\n", [
+        "* FLAGS (\\Flagged \\Draft \\Deleted \\Seen)\r\n",
+        "* OK [PERMANENTFLAGS (\\Flagged \\Draft \\Deleted \\Seen \\*)] Flags permitted\r\n",
+        "* 0 EXISTS\r\n",
+        "* 0 RECENT\r\n",
+        "A002 OK [READ-WRITE] INBOX selected. (Success)\r\n"
+      ])
+      |> TestServer.on("A003 IDLE\r\n", [
+        "+ idling\r\n"
+      ])
+      |> TestServer.on("DONE\r\n", [
+        "A003 OK IDLE terminated\r\n"
+      ])
+      |> TestServer.on("A004 IDLE\r\n", [
+        "+ idling\r\n",
+        "* 2 EXISTS\r\n"
+      ])
+      |> TestServer.on("DONE\r\n", [
+        "A004 OK IDLE terminated\r\n"
+      ])
+      |> TestServer.on("A005 LOGOUT\r\n", [
+        "* BYE We're out of here\r\n",
+        "A005 OK Logged out\r\n"
+      ])
+    end)
+
+    assert {:ok, client} =
+             IMAP.connect(server.address, "test@example.com", "P@55w0rD",
+               port: server.port,
+               ssl: true,
+               debug: @debug
+             )
+
+    client
+    |> IMAP.select(:inbox)
+    |> IMAP.idle(timeout: 100)
+    |> IMAP.idle()
+
+    IMAP.logout(client)
+  end
+
   test "LOGOUT" do
     server = TestServer.start(ssl: true)
 
@@ -814,51 +865,59 @@ defmodule Mailroom.IMAPTest do
     assert IMAP.state(client) == :logged_out
   end
 
-  # test "live" do
-  #   server = Application.get_env(:mailroom, :imap_server)
-  #   port = Application.get_env(:mailroom, :imap_port)
-  #   username = Application.get_env(:mailroom, :imap_username)
-  #   password = Application.get_env(:mailroom, :imap_password)
-  #   ssl = Application.get_env(:mailroom, :imap_ssl, false)
+  @tag timeout: 360_000, skip: true
+  test "live" do
+    server = Application.get_env(:mailroom, :imap_server)
+    port = Application.get_env(:mailroom, :imap_port)
+    username = Application.get_env(:mailroom, :imap_username)
+    password = Application.get_env(:mailroom, :imap_password)
+    ssl = Application.get_env(:mailroom, :imap_ssl, false)
 
-  #   {:ok, client} = IMAP.connect(server, username, password, port: port, ssl: ssl, debug: true)
+    {:ok, client} = IMAP.connect(server, username, password, port: port, ssl: ssl, debug: true)
 
-  #   client
-  #   |> IMAP.select(:inbox)
-  #   |> IMAP.search("UNSEEN", :envelope, fn {msg_id, _envelope} ->
-  #     # No unseen flag, just /Seen which needs to be removed
-  #     IMAP.add_flags(client, msg_id, :seen)
-  #   end)
-  #   |> IMAP.expunge()
-  #   |> IMAP.logout()
+    client
+    |> IMAP.select(:inbox)
+    |> IMAP.idle(timeout: 30000)
+    |> IMAP.idle(timeout: 30000)
+    |> IMAP.idle(timeout: 30000)
+    |> IMAP.idle(timeout: 30000)
 
-  #   # client
-  #   # |> IMAP.select(:inbox)
-  #   # |> IMAP.search("UNSEEN", :uid, fn({msg_id, envelope}) ->
-  #   #   IO.inspect({msg_id, envelope})
-  #   # end)
-  #   # |> IMAP.expunge
+    #   client
+    #   |> IMAP.select(:inbox)
+    #   |> IMAP.search("UNSEEN", :envelope, fn {msg_id, _envelope} ->
+    #     # No unseen flag, just /Seen which needs to be removed
+    #     IMAP.add_flags(client, msg_id, :seen)
+    #   end)
+    #   |> IMAP.expunge()
+    #   |> IMAP.logout()
 
-  #   # IMAP.close(client)
-  #   # IMAP.logout(client)
+    #   # client
+    #   # |> IMAP.select(:inbox)
+    #   # |> IMAP.search("UNSEEN", :uid, fn({msg_id, envelope}) ->
+    #   #   IO.inspect({msg_id, envelope})
+    #   # end)
+    #   # |> IMAP.expunge
 
-  #   # Mailroom.Inbox server: server, username: username, password: password, port: port, ssl: ssl, mailbox: "INBOX" do
-  #   #   match [to: {_, "john", "example.com"}, from: {_, _, "example.com"}, subject: ~r/Example/], ExampleController
-  #   # end
+    # IMAP.close(client)
+    IMAP.logout(client)
 
-  #   # %{
-  #   #   uuid: "abcdefg",
-  #   #   envelope: %{},
-  #   #   message: %Mail.Message{},
-  #   #   flags: [:seen],
-  #   # }
+    #   # Mailroom.Inbox server: server, username: username, password: password, port: port, ssl: ssl, mailbox: "INBOX" do
+    #   #   match [to: {_, "john", "example.com"}, from: {_, _, "example.com"}, subject: ~r/Example/], ExampleController
+    #   # end
 
-  #   # defmodule ExampleController do
-  #   #   def process(email) do
-  #   #     message = get_message(email)
+    #   # %{
+    #   #   uuid: "abcdefg",
+    #   #   envelope: %{},
+    #   #   message: %Mail.Message{},
+    #   #   flags: [:seen],
+    #   # }
 
-  #   #   end
+    #   # defmodule ExampleController do
+    #   #   def process(email) do
+    #   #     message = get_message(email)
 
-  #   # end
-  # end
+    #   #   end
+
+    #   # end
+  end
 end

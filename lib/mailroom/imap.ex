@@ -18,12 +18,14 @@ defmodule Mailroom.IMAP do
               permanent_flags: [],
               uid_validity: nil,
               uid_next: nil,
-              unseen: nil,
+              unseen: 0,
               highest_mod_seq: nil,
               recent: 0,
               exists: 0,
               temp: nil,
-              mailbox: nil
+              mailbox: nil,
+              idle_caller: nil,
+              idle_timer: nil
   end
 
   @moduledoc """
@@ -182,6 +184,15 @@ defmodule Mailroom.IMAP do
   def expunge(pid),
     do: GenServer.call(pid, :expunge) && pid
 
+  @doc ~S"""
+  ## Options
+   - `:timeout` - (integer) number of milliseconds before terminating the idle command if no update has been received. Defaults to `1_500_00` (25 minutes)
+  """
+  def idle(pid, opts \\ []) do
+    timeout = Keyword.get(opts, :timeout, 1_500_000)
+    GenServer.call(pid, {:idle, timeout}, :infinity) && pid
+  end
+
   def close(pid),
     do: GenServer.call(pid, :close) && pid
 
@@ -308,6 +319,11 @@ defmodule Mailroom.IMAP do
   def handle_call(:expunge, from, state),
     do: {:noreply, send_command(from, "EXPUNGE", state)}
 
+  def handle_call({:idle, timeout}, from, state) do
+    timer = Process.send_after(self(), :idle_timeout, timeout)
+    {:noreply, send_command(from, "IDLE", %{state | idle_caller: from, idle_timer: timer})}
+  end
+
   def handle_call(:close, from, state),
     do: {:noreply, send_command(from, "CLOSE", state)}
 
@@ -339,9 +355,19 @@ defmodule Mailroom.IMAP do
     handle_response(msg, state)
   end
 
+  def handle_info(:idle_timeout, %{socket: socket} = state) do
+    cancel_idle(socket, nil)
+    {:noreply, state}
+  end
+
   def handle_info(msg, state) do
     Logger.info("handle_info(#{inspect(msg)}, #{inspect(state)})")
     {:noreply, state}
+  end
+
+  defp cancel_idle(socket, timer) do
+    if timer, do: Process.cancel_timer(timer)
+    :ok = Socket.send(socket, ["DONE\r\n"])
   end
 
   defp handle_response(
@@ -409,36 +435,37 @@ defmodule Mailroom.IMAP do
     do: {:noreply, state}
 
   defp handle_response(<<"* ", msg::binary>>, state) do
-    state =
-      case String.split(msg, " ", parts: 3) do
-        [number, "EXISTS\r\n"] ->
-          %{state | exists: String.to_integer(number)}
+    case String.split(msg, " ", parts: 3) do
+      [number, "EXISTS\r\n"] ->
+        handle_exists(String.to_integer(number), state)
 
-        [number, "RECENT\r\n"] ->
-          %{state | recent: String.to_integer(number)}
+      [number, "RECENT\r\n"] ->
+        {:noreply, %{state | recent: String.to_integer(number)}}
 
-        [_number, "EXPUNGE\r\n"] ->
-          %{state | exists: state.exists - 1}
+      [_number, "EXPUNGE\r\n"] ->
+        {:noreply, %{state | exists: state.exists - 1}}
 
-        [number, "FETCH", rest] ->
-          data =
-            case Regex.run(~r/(.+ {(\d+)}\r\n)$/, rest) do
-              [_, initial, bytes] ->
-                fetch_all_data(String.to_integer(bytes), 0, [initial], state)
+      [number, "FETCH", rest] ->
+        data =
+          case Regex.run(~r/(.+ {(\d+)}\r\n)$/, rest) do
+            [_, initial, bytes] ->
+              fetch_all_data(String.to_integer(bytes), 0, [initial], state)
 
-              _ ->
-                rest
-            end
+            _ ->
+              rest
+          end
 
-          %{state | temp: [{String.to_integer(number), parse_fetch_response(data)} | state.temp]}
+        {:noreply,
+         %{state | temp: [{String.to_integer(number), parse_fetch_response(data)} | state.temp]}}
 
-        _ ->
-          Logger.warn("Unknown untagged response: #{msg}")
-          state
-      end
-
-    {:noreply, state}
+      _ ->
+        Logger.warn("Unknown untagged response: #{msg}")
+        {:noreply, state}
+    end
   end
+
+  defp handle_response(<<"+ idling", _rest::binary>>, state),
+    do: {:noreply, state}
 
   defp handle_response(<<cmd_tag::binary-size(4), " ", msg::binary>>, state),
     do: handle_tagged_response(cmd_tag, msg, state)
@@ -446,6 +473,14 @@ defmodule Mailroom.IMAP do
   defp handle_response(msg, state) do
     Logger.warn("handle_response(socket, #{inspect(msg)}, #{inspect(state)})")
     {:noreply, state}
+  end
+
+  defp handle_exists(number, %{socket: socket, idle_caller: caller, idle_timer: timer} = state) do
+    if caller do
+      cancel_idle(socket, timer)
+    end
+
+    {:noreply, %{state | exists: number}}
   end
 
   defp parse_fetch_response(string) do
@@ -641,6 +676,14 @@ defmodule Mailroom.IMAP do
         | state: :authenticated,
           mailbox: nil
       })
+
+  defp process_command_response(cmd_tag, %{command: "IDLE", caller: caller}, msg, state) do
+    send_reply(caller, :ok, %{
+      remove_command_from_state(state, cmd_tag)
+      | idle_caller: nil,
+        idle_timer: nil
+    })
+  end
 
   defp process_command_response(cmd_tag, %{command: command}, msg, state) do
     Logger.warn("Command not processed: #{cmd_tag} OK #{msg} - #{command} - #{inspect(state)}")
