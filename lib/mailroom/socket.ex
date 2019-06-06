@@ -32,7 +32,7 @@ defmodule Mailroom.Socket do
 
       {:ok, socket} = #{inspect(__MODULE__)}.connect("localhost", 110, ssl: true)
   """
-  @spec connect(String.t, integer, Keyword.t) :: {:ok, t} | {:error, String.t}
+  @spec connect(String.t(), integer, Keyword.t()) :: {:ok, t} | {:error, String.t()}
   @connect_opts [packet: :line, reuseaddr: true, active: false, keepalive: true]
   @ssl_connect_opts [depth: 0]
   def connect(server, port, opts \\ []) do
@@ -41,6 +41,7 @@ defmodule Mailroom.Socket do
 
     connect_opts = Keyword.merge(@connect_opts, opts)
     addr = String.to_charlist(server)
+
     case do_connect(addr, state.ssl, port, [:binary | connect_opts], state.timeout) do
       {:ok, socket} -> {:ok, %{state | socket: socket}}
       {:error, reason} -> {:error, to_string(reason)}
@@ -49,15 +50,19 @@ defmodule Mailroom.Socket do
 
   defp parse_opts(opts, state \\ %__MODULE__{}, acc \\ [])
   defp parse_opts([], state, acc), do: {state, acc}
+
   defp parse_opts([{:ssl, ssl} | tail], state, acc),
     do: parse_opts(tail, %{state | ssl: ssl}, acc)
+
   defp parse_opts([{:debug, debug} | tail], state, acc),
     do: parse_opts(tail, %{state | debug: debug}, acc)
+
   defp parse_opts([opt | tail], state, acc),
     do: parse_opts(tail, state, [opt | acc])
 
   defp do_connect(addr, true, port, opts, timeout),
     do: :ssl.connect(addr, port, opts, timeout)
+
   defp do_connect(addr, false, port, opts, timeout),
     do: :gen_tcp.connect(addr, port, opts, timeout)
 
@@ -68,22 +73,25 @@ defmodule Mailroom.Socket do
 
       {:ok, line} = #{inspect(__MODULE__)}.recv(socket)
   """
-  @spec recv(t) :: {:ok, String.t} | {:error, String.t}
+  @spec recv(t) :: {:ok, String.t()} | {:error, String.t()}
   def recv(%{debug: debug, ssl: ssl} = socket) do
     case do_recv(socket) do
       {:ok, line} ->
         if debug, do: IO.write(["> ", tag_debug(ssl), line])
         {:ok, String.replace_suffix(line, "\r\n", "")}
-      {:error, reason} -> {:error, to_string(reason)}
+
+      {:error, reason} ->
+        {:error, to_string(reason)}
     end
   end
 
   defp do_recv(%{socket: socket, ssl: true, timeout: timeout}),
     do: :ssl.recv(socket, 0, timeout)
+
   defp do_recv(%{socket: socket, ssl: false, timeout: timeout}),
     do: :gen_tcp.recv(socket, 0, timeout)
 
-  defp tag_debug(true),  do: "[ssl] "
+  defp tag_debug(true), do: "[ssl] "
   defp tag_debug(false), do: "[tcp] "
 
   @doc """
@@ -93,9 +101,10 @@ defmodule Mailroom.Socket do
 
       :ok = #{inspect(__MODULE__)}.send(socket)
   """
-  @spec send(t, String.t) :: :ok | {:error, String.t}
+  @spec send(t, String.t()) :: :ok | {:error, String.t()}
   def send(%{debug: debug, ssl: ssl} = socket, data) do
     if debug, do: IO.write(["< ", tag_debug(ssl), data])
+
     case do_send(socket, data) do
       :ok -> :ok
       {:error, reason} -> {:error, to_string(reason)}
@@ -104,11 +113,13 @@ defmodule Mailroom.Socket do
 
   defp do_send(%{socket: socket, ssl: true}, data),
     do: :ssl.send(socket, data)
+
   defp do_send(%{socket: socket, ssl: false}, data),
     do: :gen_tcp.send(socket, data)
 
   def ssl_client(%{socket: socket, ssl: true} = socket),
     do: socket
+
   def ssl_client(%{socket: socket, timeout: timeout} = client) do
     case :ssl.connect(socket, @connect_opts ++ @ssl_connect_opts, timeout) do
       {:ok, socket} -> {:ok, %{client | socket: socket, ssl: true}}
@@ -132,6 +143,7 @@ defmodule Mailroom.Socket do
 
   defp do_close(%{socket: socket, ssl: true}),
     do: :ssl.close(socket)
+
   defp do_close(%{socket: socket, ssl: false}),
     do: :gen_tcp.close(socket)
 end

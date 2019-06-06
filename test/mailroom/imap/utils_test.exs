@@ -33,7 +33,8 @@ defmodule Mailroom.IMAP.UtilsTest do
     end
 
     test "with literal string" do
-      assert parse_list("(BODY[TEXT] {8}\r\nTest 1\r\n)\r\n") == {["BODY[TEXT]", "Test 1\r\n"], "\r\n"}
+      assert parse_list("(BODY[TEXT] {8}\r\nTest 1\r\n)\r\n") ==
+               {["BODY[TEXT]", "Test 1\r\n"], "\r\n"}
     end
 
     test "with NIL" do
@@ -77,21 +78,61 @@ defmodule Mailroom.IMAP.UtilsTest do
   end
 
   test "list_to_status_items/1" do
-    assert list_to_status_items(["MESSAGES", "4", "RECENT", "2", "UNSEEN", "1"]) == %{messages: 4, recent: 2, unseen: 1}
+    assert list_to_status_items(["MESSAGES", "4", "RECENT", "2", "UNSEEN", "1"]) == %{
+             messages: 4,
+             recent: 2,
+             unseen: 1
+           }
   end
 
   test "list_to_items/1" do
-    map = list_to_items(["RFC822.SIZE", "3325", "INTERNALDATE", "26-Oct-2016 12:23:20 +0000", "FLAGS", ["Seen"]])
-    assert map == %{rfc822_size: "3325", internal_date: "26-Oct-2016 12:23:20 +0000", flags: ["Seen"]}
+    map =
+      list_to_items([
+        "RFC822.SIZE",
+        "3325",
+        "INTERNALDATE",
+        "26-Oct-2016 12:23:20 +0000",
+        "FLAGS",
+        ["Seen"]
+      ])
+
+    assert map == %{
+             rfc822_size: "3325",
+             internal_date: "26-Oct-2016 12:23:20 +0000",
+             flags: ["Seen"]
+           }
   end
 
   test "flags_to_list/1" do
     assert flags_to_list(["\\Seen", "\\Answered"]) == ["(", "\\Seen", " ", "\\Answered", ")"]
-    assert flags_to_list([:seen, :answered, :flagged, :deleted, :draft, :recent]) == ["(", "\\Seen", " ", "\\Answered", " ", "\\Flagged", " ", "\\Deleted", " ", "\\Draft", " ", "\\Recent", ")"]
+
+    assert flags_to_list([:seen, :answered, :flagged, :deleted, :draft, :recent]) == [
+             "(",
+             "\\Seen",
+             " ",
+             "\\Answered",
+             " ",
+             "\\Flagged",
+             " ",
+             "\\Deleted",
+             " ",
+             "\\Draft",
+             " ",
+             "\\Recent",
+             ")"
+           ]
   end
 
   test "list_to_flags/1" do
-    assert list_to_flags(["\\Seen", "\\Answered", "\\Flagged", "\\Deleted", "\\Draft", "\\Recent", "Other"]) == [:seen, :answered, :flagged, :deleted, :draft, :recent, "Other"]
+    assert list_to_flags([
+             "\\Seen",
+             "\\Answered",
+             "\\Flagged",
+             "\\Deleted",
+             "\\Draft",
+             "\\Recent",
+             "Other"
+           ]) == [:seen, :answered, :flagged, :deleted, :draft, :recent, "Other"]
   end
 
   describe "parse_number/1" do
@@ -102,12 +143,12 @@ defmodule Mailroom.IMAP.UtilsTest do
 
     test "with multiple digits" do
       assert parse_number("12345") == 12345
-      assert parse_number("352841") == 352841
+      assert parse_number("352841") == 352_841
     end
 
     test "with digits followed by other data" do
       assert parse_number("12345Bob") == 12345
-      assert parse_number("352841 more data") == 352841
+      assert parse_number("352841 more data") == 352_841
     end
   end
 
@@ -119,11 +160,29 @@ defmodule Mailroom.IMAP.UtilsTest do
 
   test "numbers_to_sequences/1" do
     assert numbers_to_sequences([]) == []
-    assert numbers_to_sequences([1,2,4]) == [1..2, 4]
-    assert numbers_to_sequences([1,4,2]) == [1..2, 4]
-    assert numbers_to_sequences([1,2,3,4,7,9,11,22,23,24,25,26,30]) == [1..4, 7, 9, 11, 22..26, 30]
-    assert numbers_to_sequences([1,2,3,4,7,9,11,22,23,24,25,26,30,45,46]) == [1..4, 7, 9, 11, 22..26, 30, 45..46]
-    assert numbers_to_sequences([1,3,5,7,9,2,4,6,8,10]) == [1..10]
-    assert numbers_to_sequences([1,3,5,7,9,2,4,6,8,10,1,3,5,7,9]) == [1..10]
+    assert numbers_to_sequences([1, 2, 4]) == [1..2, 4]
+    assert numbers_to_sequences([1, 4, 2]) == [1..2, 4]
+
+    assert numbers_to_sequences([1, 2, 3, 4, 7, 9, 11, 22, 23, 24, 25, 26, 30]) == [
+             1..4,
+             7,
+             9,
+             11,
+             22..26,
+             30
+           ]
+
+    assert numbers_to_sequences([1, 2, 3, 4, 7, 9, 11, 22, 23, 24, 25, 26, 30, 45, 46]) == [
+             1..4,
+             7,
+             9,
+             11,
+             22..26,
+             30,
+             45..46
+           ]
+
+    assert numbers_to_sequences([1, 3, 5, 7, 9, 2, 4, 6, 8, 10]) == [1..10]
+    assert numbers_to_sequences([1, 3, 5, 7, 9, 2, 4, 6, 8, 10, 1, 3, 5, 7, 9]) == [1..10]
   end
 end

@@ -38,6 +38,7 @@ defmodule Mailroom.POP3 do
   def connect(server, username, password, options \\ []) do
     opts = parse_opts(options)
     {:ok, socket} = Socket.connect(server, opts.port, ssl: opts.ssl, debug: opts.debug)
+
     case login(socket, username, password) do
       :ok -> {:ok, socket}
       {:error, reason} -> {:error, :authentication, reason}
@@ -45,21 +46,28 @@ defmodule Mailroom.POP3 do
   end
 
   defp parse_opts(opts, acc \\ %{ssl: false, port: nil, debug: false})
+
   defp parse_opts([], acc),
     do: set_default_port(acc)
+
   defp parse_opts([{:ssl, ssl} | tail], acc),
     do: parse_opts(tail, Map.put(acc, :ssl, ssl))
+
   defp parse_opts([{:port, port} | tail], acc),
     do: parse_opts(tail, Map.put(acc, :port, port))
+
   defp parse_opts([{:debug, debug} | tail], acc),
     do: parse_opts(tail, Map.put(acc, :debug, debug))
+
   defp parse_opts([_ | tail], acc),
     do: parse_opts(tail, acc)
 
   defp set_default_port(%{port: nil, ssl: false} = opts),
     do: %{opts | port: 110}
+
   defp set_default_port(%{port: nil, ssl: true} = opts),
     do: %{opts | port: 995}
+
   defp set_default_port(opts),
     do: opts
 
@@ -99,13 +107,14 @@ defmodule Mailroom.POP3 do
   """
   def list(socket) do
     {:ok, data} = send_list(socket)
+
     data
     |> Enum.drop(1)
     |> Enum.reduce([], fn
-      (".", acc) -> acc
-      (stat, acc) -> [parse_stat(stat) | acc]
+      ".", acc -> acc
+      stat, acc -> [parse_stat(stat) | acc]
     end)
-    |> Enum.reverse
+    |> Enum.reverse()
   end
 
   @doc """
@@ -119,8 +128,10 @@ defmodule Mailroom.POP3 do
       ["Date: Fri, 30 Sep 2016 10:48:00 +0200", "Subject: Test message", "To: user@example.com", "", "Test message"]
   """
   def retrieve(socket, mail)
+
   def retrieve(socket, {id, _size}),
     do: retrieve(socket, id)
+
   def retrieve(socket, id) do
     :ok = Socket.send(socket, "RETR #{id}\r\n")
     lines = receive_till(socket, ".")
@@ -138,8 +149,10 @@ defmodule Mailroom.POP3 do
       :ok
   """
   def delete(socket, mail)
+
   def delete(socket, {id, _size}),
     do: delete(socket, id)
+
   def delete(socket, id) do
     :ok = Socket.send(socket, "DELE #{id}\r\n")
     {:ok, _} = recv(socket)
@@ -178,7 +191,7 @@ defmodule Mailroom.POP3 do
     with {:ok, _} <- recv(socket),
          {:ok, _} <- send_user(socket, username),
          {:ok, _} <- send_pass(socket, password),
-      do: :ok
+         do: :ok
   end
 
   defp send_user(socket, username) do
@@ -202,6 +215,7 @@ defmodule Mailroom.POP3 do
   end
 
   defp receive_till(socket, match, acc \\ [])
+
   defp receive_till(socket, match, acc) do
     {:ok, data} = Socket.recv(socket)
     check_if_end_of_stream(socket, match, data, acc)
@@ -209,29 +223,38 @@ defmodule Mailroom.POP3 do
 
   defp check_if_end_of_stream(_socket, match, match, acc),
     do: Enum.reverse(acc)
+
   defp check_if_end_of_stream(socket, match, data, acc),
     do: receive_till(socket, match, [data | acc])
 
   defp parse_stat(data, count \\ "", size \\ nil)
+
   defp parse_stat("", count, size),
     do: {String.to_integer(count), String.to_integer(size)}
+
   defp parse_stat(" ", count, size),
     do: {String.to_integer(count), String.to_integer(size)}
-  defp parse_stat(<<"\r", _rest :: binary>>, count, size),
+
+  defp parse_stat(<<"\r", _rest::binary>>, count, size),
     do: {String.to_integer(count), String.to_integer(size)}
-  defp parse_stat(<<" ", rest :: binary>>, count, nil),
+
+  defp parse_stat(<<" ", rest::binary>>, count, nil),
     do: parse_stat(rest, count, "")
-  defp parse_stat(<<char :: binary-size(1), rest :: binary>>, count, nil),
-      do: parse_stat(rest, count <> char, nil)
-  defp parse_stat(<<char :: binary-size(1), rest :: binary>>, count, size),
+
+  defp parse_stat(<<char::binary-size(1), rest::binary>>, count, nil),
+    do: parse_stat(rest, count <> char, nil)
+
+  defp parse_stat(<<char::binary-size(1), rest::binary>>, count, size),
     do: parse_stat(rest, count, size <> char)
 
   defp recv(socket) do
     {:ok, msg} = Socket.recv(socket)
+
     case msg do
-      <<"+OK", msg :: binary>> ->
+      <<"+OK", msg::binary>> ->
         {:ok, msg}
-      <<"-ERR", reason :: binary>> ->
+
+      <<"-ERR", reason::binary>> ->
         {:error, String.strip(reason)}
     end
   end

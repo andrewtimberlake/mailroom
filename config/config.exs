@@ -27,5 +27,5 @@ use Mix.Config
 # Configuration from the imported file will override the ones defined
 # here (which is why it is important to import them last).
 #
-environment_config = Path.join([__DIR__, "#{Mix.env}.exs"])
-if File.exists?(environment_config), do: import_config environment_config
+environment_config = Path.join([__DIR__, "#{Mix.env()}.exs"])
+if File.exists?(environment_config), do: import_config(environment_config)

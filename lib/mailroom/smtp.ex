@@ -4,21 +4,26 @@ defmodule Mailroom.SMTP do
   def connect(server, options \\ []) do
     opts = parse_opts(options)
     {:ok, socket} = Socket.connect(server, opts.port, ssl: opts.ssl, debug: opts.debug)
+
     with {:ok, _banner} <- read_banner(socket),
          {:ok, extensions} <- greet(socket),
          {:ok, socket, _extensions} <- try_starttls(socket, extensions),
          {:ok, socket} <- try_auth(socket, extensions, options),
-      do: {:ok, socket}
+         do: {:ok, socket}
   end
 
   defp parse_opts(opts, acc \\ %{ssl: false, port: 25, debug: false})
   defp parse_opts([], acc), do: acc
+
   defp parse_opts([{:ssl, ssl} | tail], acc),
     do: parse_opts(tail, Map.put(acc, :ssl, ssl))
+
   defp parse_opts([{:port, port} | tail], acc),
     do: parse_opts(tail, Map.put(acc, :port, port))
+
   defp parse_opts([{:debug, debug} | tail], acc),
     do: parse_opts(tail, Map.put(acc, :debug, debug))
+
   defp parse_opts([_ | tail], acc),
     do: parse_opts(tail, acc)
 
@@ -27,8 +32,9 @@ defmodule Mailroom.SMTP do
     parse_banner(line)
   end
 
-  defp parse_banner(<<"220 ", banner :: binary>>),
+  defp parse_banner(<<"220 ", banner::binary>>),
     do: {:ok, banner}
+
   defp parse_banner(_),
     do: {:error, "Unexpected banner"}
 
@@ -36,6 +42,7 @@ defmodule Mailroom.SMTP do
     case try_ehlo(socket) do
       {:ok, lines} ->
         {:ok, parse_exentions(lines)}
+
       :error ->
         {:ok, {"250", _}} = send_helo(socket)
         {:ok, []}
@@ -45,9 +52,10 @@ defmodule Mailroom.SMTP do
   defp try_ehlo(socket) do
     Socket.send(socket, ["EHLO ", fqdn, "\r\n"])
     {:ok, lines} = read_potentially_multiline_response(socket)
+
     case hd(lines) do
       {"500", _} -> :error
-      {<<"4", _ :: binary>>, _} -> :temp_error
+      {<<"4", _::binary>>, _} -> :temp_error
       _ -> {:ok, lines}
     end
   end
@@ -58,17 +66,21 @@ defmodule Mailroom.SMTP do
     parse_smtp_response(data)
   end
 
-  defp parse_smtp_response(<<"2", code :: binary-size(2), " ", domain :: binary>>),
+  defp parse_smtp_response(<<"2", code::binary-size(2), " ", domain::binary>>),
     do: {:ok, {"2" <> code, domain}}
-  defp parse_smtp_response(<<"3", code :: binary-size(2), " ", domain :: binary>>),
+
+  defp parse_smtp_response(<<"3", code::binary-size(2), " ", domain::binary>>),
     do: {:ok, {"3" <> code, domain}}
-  defp parse_smtp_response(<<"4", code :: binary-size(2), " ", reason :: binary>>),
+
+  defp parse_smtp_response(<<"4", code::binary-size(2), " ", reason::binary>>),
     do: {:temp_error, {"4" <> code, reason}}
-  defp parse_smtp_response(<<"5", code :: binary-size(2), " ", reason :: binary>>),
+
+  defp parse_smtp_response(<<"5", code::binary-size(2), " ", reason::binary>>),
     do: {:error, {"5" <> code, reason}}
 
   defp parse_exentions(lines, acc \\ [])
   defp parse_exentions([], acc), do: Enum.reverse(acc)
+
   defp parse_exentions([line | tail], acc),
     do: parse_exentions(tail, [parse_exention(line) | acc])
 
@@ -81,11 +93,21 @@ defmodule Mailroom.SMTP do
   end
 
   defp parse_potentially_multiline_response(data, socket, acc \\ [])
-  defp parse_potentially_multiline_response(<<code :: binary-size(3), " ", rest :: binary>>, _socket, acc) do
+
+  defp parse_potentially_multiline_response(
+         <<code::binary-size(3), " ", rest::binary>>,
+         _socket,
+         acc
+       ) do
     acc = [{code, rest} | acc]
     {:ok, Enum.reverse(acc)}
   end
-  defp parse_potentially_multiline_response(<<code :: binary-size(3), "-", rest :: binary>>, socket, acc) do
+
+  defp parse_potentially_multiline_response(
+         <<code::binary-size(3), "-", rest::binary>>,
+         socket,
+         acc
+       ) do
     acc = [{code, rest} | acc]
     {:ok, data} = Socket.recv(socket)
     parse_potentially_multiline_response(data, socket, acc)
@@ -93,8 +115,10 @@ defmodule Mailroom.SMTP do
 
   defp try_starttls(socket, extensions) do
     if supports_extension?("STARTTLS", extensions) do
-      {:ok, socket} = do_starttls(socket) # TODO: Need to handle error case
-      {:ok, extensions} = try_ehlo(socket)            # TODO: Need to handle error case
+      # TODO: Need to handle error case
+      {:ok, socket} = do_starttls(socket)
+      # TODO: Need to handle error case
+      {:ok, extensions} = try_ehlo(socket)
       {:ok, socket, extensions}
     else
       {:ok, socket, extensions}
@@ -119,6 +143,7 @@ defmodule Mailroom.SMTP do
   defp try_auth(socket, extensions, options) do
     if supports_extension?("AUTH", extensions) do
       params = get_parameters("AUTH", extensions)
+
       case do_auth(socket, params, options) do
         {:ok, _} -> {:ok, socket}
         other -> other
@@ -139,6 +164,7 @@ defmodule Mailroom.SMTP do
 
   defp do_auth(_socket, _options, nil, _password),
     do: {:error, "Missing username"}
+
   defp do_auth(_socket, _options, _username, nil),
     do: {:error, "Missing password"}
 
@@ -148,6 +174,7 @@ defmodule Mailroom.SMTP do
     {:ok, data} = Socket.recv(socket)
     parse_smtp_response(data)
   end
+
   defp do_auth(socket, ["LOGIN" | _tail], username, password) do
     Socket.send(socket, ["AUTH LOGIN\r\n"])
     # Socket.send(socket, ["AUTH PLAIN ", auth_string, "\r\n"])
@@ -164,11 +191,12 @@ defmodule Mailroom.SMTP do
     {:ok, data} = Socket.recv(socket)
     parse_smtp_response(data)
   end
+
   defp do_auth(socket, [_opt | tail], username, password),
     do: do_auth(socket, tail, username, password)
 
   defp decode_base64_lowercase(string),
-    do: string |> Base.decode64! |> String.downcase
+    do: string |> Base.decode64!() |> String.downcase()
 
   def send_message(socket, from, to, message) do
     Socket.send(socket, ["MAIL FROM: <", from, ">\r\n"])
@@ -185,7 +213,7 @@ defmodule Mailroom.SMTP do
 
     message
     |> String.split(~r/\r\n/)
-    |> Enum.each(fn(line) ->
+    |> Enum.each(fn line ->
       :ok = Socket.send(socket, [line, "\r\n"])
     end)
 
@@ -202,7 +230,7 @@ defmodule Mailroom.SMTP do
   end
 
   def fqdn do
-    {:ok, name} = :inet.gethostname
+    {:ok, name} = :inet.gethostname()
     {:ok, hostent} = :inet.gethostbyname(name)
     {:hostent, name, _aliases, :inet, _, _addresses} = hostent
     to_string(name)
