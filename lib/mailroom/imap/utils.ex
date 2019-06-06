@@ -1,4 +1,5 @@
 defmodule Mailroom.IMAP.Utils do
+  @moduledoc false
   def parse_list_only(string) do
     {list, _rest} = parse_list(string)
     list

@@ -3,7 +3,7 @@ defmodule Mailroom.IMAP do
   use GenServer
 
   import Mailroom.IMAP.Utils
-  alias Mailroom.Envelope
+  alias Mailroom.IMAP.Envelope
 
   defmodule State do
     @moduledoc false
@@ -27,11 +27,11 @@ defmodule Mailroom.IMAP do
   end
 
   @moduledoc """
-  Handles communication with a POP3 server.
+  Handles communication with a IMAP server.
 
   ## Example:
 
-      {:ok, client} = #{inspect(__MODULE__)}.connect("pop3.server", "username", "password")
+      {:ok, client} = #{inspect(__MODULE__)}.connect("imap.server", "username", "password")
       client
       |> #{inspect(__MODULE__)}.list
       |> Enum.each(fn(mail)) ->
@@ -49,7 +49,7 @@ defmodule Mailroom.IMAP do
   alias Mailroom.Socket
 
   @doc """
-  Connect to the POP3 server
+  Connect to the IMAP server
 
   The following options are available:
 
@@ -59,8 +59,8 @@ defmodule Mailroom.IMAP do
 
   ## Examples:
 
-      #{inspect(__MODULE__)}.connect("pop3.myserver", "me", "secret", ssl: true)
-      {:ok, %#{inspect(__MODULE__)}{}}
+      #{inspect(__MODULE__)}.connect("imap.server", "me", "secret", ssl: true)
+      {:ok, pid}
   """
   def connect(server, username, password, options \\ []) do
     opts = parse_opts(options)
@@ -470,7 +470,7 @@ defmodule Mailroom.IMAP do
     do: {:uid, parse_number(datetime)}
 
   defp parse_fetch_item(:envelope, envelope),
-    do: {:envelope, Envelope.parse_imap_envelope(envelope)}
+    do: {:envelope, Envelope.new(envelope)}
 
   defp parse_fetch_item(key, value),
     do: {key, value}

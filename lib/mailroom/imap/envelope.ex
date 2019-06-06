@@ -1,9 +1,12 @@
-defmodule Mailroom.Envelope do
+defmodule Mailroom.IMAP.Envelope do
   defstruct ~w[date subject from sender reply_to to cc bcc in_reply_to message_id]a
 
   import Mailroom.IMAP.Utils
 
-  def parse_imap_envelope(list) do
+  @doc ~S"""
+  Generates an `Envelope` struct from the IMAP ENVELOPE list
+  """
+  def new(list) do
     [date, subject, from, sender, reply_to, to, cc, bcc, in_reply_to, message_id] = list
 
     %__MODULE__{

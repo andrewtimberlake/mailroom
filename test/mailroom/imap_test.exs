@@ -2,7 +2,8 @@ defmodule Mailroom.IMAPTest do
   use ExUnit.Case, async: true
   doctest Mailroom.IMAP
 
-  alias Mailroom.{IMAP, TestServer, Envelope}
+  alias Mailroom.{IMAP, TestServer}
+  alias Mailroom.IMAP.Envelope
 
   @debug false
 

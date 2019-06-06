@@ -4,8 +4,8 @@ defmodule Mailroom.POP3 do
 
   ## Example:
 
-      {:ok, client} = #{inspect(__MODULE__)}.connect("pop3.server", "username", "password")
-      client
+      {:ok, socket} = #{inspect(__MODULE__)}.connect("pop3.server", "username", "password")
+      socket
       |> #{inspect(__MODULE__)}.list
       |> Enum.each(fn(mail)) ->
         message =
@@ -13,10 +13,10 @@ defmodule Mailroom.POP3 do
           |> #{inspect(__MODULE__)}.retrieve(mail)
           |> Enum.join("\\n")
         # … process message
-        #{inspect(__MODULE__)}.delete(client, mail)
+        #{inspect(__MODULE__)}.delete(socket, mail)
       end)
-      #{inspect(__MODULE__)}.reset(client)
-      #{inspect(__MODULE__)}.close(client)
+      #{inspect(__MODULE__)}.reset(socket)
+      #{inspect(__MODULE__)}.close(socket)
   """
 
   alias Mailroom.Socket
@@ -33,7 +33,7 @@ defmodule Mailroom.POP3 do
   ## Examples:
 
       #{inspect(__MODULE__)}.connect("pop3.myserver", "me", "secret", ssl: true)
-      {:ok, %#{inspect(__MODULE__)}{}}
+      {:ok, %#{inspect(Socket)}{}}
   """
   def connect(server, username, password, options \\ []) do
     opts = parse_opts(options)
@@ -76,7 +76,7 @@ defmodule Mailroom.POP3 do
 
   ## Examples:
 
-      #{inspect(__MODULE__)}.close(client)
+      #{inspect(__MODULE__)}.close(socket)
       :ok
   """
   def close(socket) do
@@ -89,7 +89,7 @@ defmodule Mailroom.POP3 do
 
   ## Examples:
 
-      #{inspect(__MODULE__)}.stat(client)
+      #{inspect(__MODULE__)}.stat(socket)
       {12, 13579}
   """
   def stat(socket) do
@@ -102,7 +102,7 @@ defmodule Mailroom.POP3 do
 
   ## Examples:
 
-      #{inspect(__MODULE__)}.list(client)
+      #{inspect(__MODULE__)}.list(socket)
       [{1, 100}, {2, 200}]
   """
   def list(socket) do
@@ -122,9 +122,9 @@ defmodule Mailroom.POP3 do
 
   ## Examples:
 
-      > #{inspect(__MODULE__)}.retrieve(client, {1, 100})
+      > #{inspect(__MODULE__)}.retrieve(socket, {1, 100})
       ["Date: Fri, 30 Sep 2016 10:48:00 +0200", "Subject: Test message", "To: user@example.com", "", "Test message"]
-      > #{inspect(__MODULE__)}.retrieve(client, 1)
+      > #{inspect(__MODULE__)}.retrieve(socket, 1)
       ["Date: Fri, 30 Sep 2016 10:48:00 +0200", "Subject: Test message", "To: user@example.com", "", "Test message"]
   """
   def retrieve(socket, mail)
@@ -143,9 +143,9 @@ defmodule Mailroom.POP3 do
 
   ## Examples:
 
-      > #{inspect(__MODULE__)}.delete(client, {1, 100})
+      > #{inspect(__MODULE__)}.delete(socket, {1, 100})
       :ok
-      > #{inspect(__MODULE__)}.delete(client, 1)
+      > #{inspect(__MODULE__)}.delete(socket, 1)
       :ok
   """
   def delete(socket, mail)
@@ -164,7 +164,7 @@ defmodule Mailroom.POP3 do
 
   ## Examples:
 
-      > #{inspect(__MODULE__)}.reset(client)
+      > #{inspect(__MODULE__)}.reset(socket)
       :ok
   """
   def reset(socket) do
@@ -178,7 +178,7 @@ defmodule Mailroom.POP3 do
 
   ## Examples:
 
-      > #{inspect(__MODULE__)}.reset(client)
+      > #{inspect(__MODULE__)}.reset(socket)
       :ok
   """
   def quit(socket) do
