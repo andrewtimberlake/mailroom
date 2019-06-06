@@ -94,7 +94,7 @@ defmodule Mailroom.POP3 do
   """
   def stat(socket) do
     {:ok, data} = send_stat(socket)
-    parse_stat(String.strip(data))
+    parse_stat(trim(data))
   end
 
   @doc """
@@ -255,7 +255,13 @@ defmodule Mailroom.POP3 do
         {:ok, msg}
 
       <<"-ERR", reason::binary>> ->
-        {:error, String.strip(reason)}
+        {:error, trim(reason)}
     end
+  end
+
+  if function_exported?(String, :trim, 1) do
+    defp trim(string), do: String.trim(string)
+  else
+    defp trim(string), do: String.strip(string)
   end
 end
