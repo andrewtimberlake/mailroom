@@ -143,13 +143,10 @@ defmodule Mailroom.IMAP do
     if func do
       list
       |> numbers_to_sequences
-      |> Enum.reduce([], fn number_or_range, acc ->
+      |> Enum.each(fn number_or_range ->
         {:ok, list} = fetch(pid, number_or_range, items_list)
-        [list | acc]
+        Enum.each(list, func)
       end)
-      |> Enum.reverse()
-      |> List.flatten()
-      |> Enum.each(func)
 
       pid
     else

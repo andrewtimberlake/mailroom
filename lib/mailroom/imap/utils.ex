@@ -199,7 +199,6 @@ defmodule Mailroom.IMAP.Utils do
   def parse_number(_, acc),
     do: String.to_integer(acc)
 
-  @months ~w(Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec)
   def parse_timestamp(
         <<date::binary-size(2), "-", month::binary-size(3), "-", year::binary-size(4), " ",
           hour::binary-size(2), ":", minute::binary-size(2), ":", second::binary-size(2), " ",

@@ -1,8 +1,6 @@
 defmodule Mailroom.IMAP.Envelope do
   defstruct ~w[date subject from sender reply_to to cc bcc in_reply_to message_id]a
 
-  import Mailroom.IMAP.Utils
-
   @doc ~S"""
   Generates an `Envelope` struct from the IMAP ENVELOPE list
   """
