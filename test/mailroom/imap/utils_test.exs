@@ -185,4 +185,8 @@ defmodule Mailroom.IMAP.UtilsTest do
     assert numbers_to_sequences([1, 3, 5, 7, 9, 2, 4, 6, 8, 10]) == [1..10]
     assert numbers_to_sequences([1, 3, 5, 7, 9, 2, 4, 6, 8, 10, 1, 3, 5, 7, 9]) == [1..10]
   end
+
+  test "parse_timestamp/1" do
+    assert parse_timestamp("21-Jun-2018 17:51:47 +0000") == {{2018, 6, 21}, {17, 51, 47}}
+  end
 end

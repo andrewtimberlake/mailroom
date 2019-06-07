@@ -499,7 +499,7 @@ defmodule Mailroom.IMAP do
   end
 
   defp parse_fetch_item(:internal_date, datetime),
-    do: {:internal_date, parse_datetime(datetime)}
+    do: {:internal_date, parse_timestamp(datetime)}
 
   defp parse_fetch_item(:uid, datetime),
     do: {:uid, parse_number(datetime)}

@@ -199,6 +199,20 @@ defmodule Mailroom.IMAP.Utils do
   def parse_number(_, acc),
     do: String.to_integer(acc)
 
+  @months ~w(Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec)
+  def parse_timestamp(
+        <<date::binary-size(2), "-", month::binary-size(3), "-", year::binary-size(4), " ",
+          hour::binary-size(2), ":", minute::binary-size(2), ":", second::binary-size(2), " ",
+          timezone::binary-size(3), _rest::binary>>
+      ) do
+    Mail.Parsers.RFC2822.erl_from_timestamp(
+      date <>
+        " " <>
+        month <>
+        " " <> year <> " " <> hour <> ":" <> minute <> ":" <> second <> " (" <> timezone <> ")"
+    )
+  end
+
   def quote_string(string),
     do: do_quote_string(String.next_grapheme(string), ["\""])
 
@@ -210,21 +224,6 @@ defmodule Mailroom.IMAP.Utils do
 
   defp do_quote_string(nil, acc),
     do: IO.iodata_to_binary(Enum.reverse(["\"" | acc]))
-
-  if Code.ensure_compiled?(Timex) do
-    def parse_datetime(datetime) do
-      with {:error, _} <- Timex.parse(datetime, "{RFC822}"),
-           {:error, _} <- Timex.parse(datetime, "{RFC1123}"),
-           {:error, _} <- Timex.parse(datetime, "{D}-{Mshort}-{YYYY} {h24}:{m}:{s} {Z}") do
-        {:error, "Unable to parse #{datetime}"}
-      else
-        {:ok, datetime} -> datetime
-      end
-    end
-  else
-    def parse_datetime(datetime),
-      do: datetime
-  end
 
   def numbers_to_sequences([]), do: []
 

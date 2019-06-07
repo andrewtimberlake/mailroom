@@ -474,15 +474,13 @@ defmodule Mailroom.IMAPTest do
       |> IMAP.select(:inbox)
       |> IMAP.fetch(1, [:uid, :flags, :rfc822_size])
 
+    timestamp = IMAP.Utils.parse_timestamp("26-Oct-2016 12:23:20 +0000")
+
     assert msgs == [
              {1,
               %{
                 flags: ["Seen"],
-                internal_date:
-                  Timex.parse!(
-                    "26-Oct-2016 12:23:20 +0000",
-                    "{D}-{Mshort}-{YYYY} {h24}:{m}:{s} {Z}"
-                  ),
+                internal_date: timestamp,
                 rfc822_size: "3325"
               }}
            ]
@@ -553,8 +551,9 @@ defmodule Mailroom.IMAPTest do
         "* 1 RECENT\r\n",
         "A002 OK [READ-WRITE] INBOX selected. (Success)\r\n"
       ])
-      |> TestServer.on("A003 FETCH 1 (ENVELOPE)\r\n", [
+      |> TestServer.on("A003 FETCH 1:2 (ENVELOPE)\r\n", [
         "* 1 FETCH (ENVELOPE (\"Wed, 26 Oct 2016 14:23:14 +0200\" \"Test 1\" ((\"John Doe\" NIL \"john\" \"example.com\")) ((\"John Doe\" NIL \"john\" \"example.com\")) ((\"John Doe\" NIL \"john\" \"example.com\")) ((NIL NIL \"dev\" \"debtflow.co.za\")) NIL NIL NIL \"<B042B704-E13E-44A2-8FEC-67A43B6DD6DB@example.com>\"))\r\n",
+        "* 2 FETCH (ENVELOPE (\"Wed, 26 Oct 2016 14:24:15 +0200\" \"Test 2\" ((\"Jane Doe\" NIL \"jane\" \"example.com\")) ((\"Jane Doe\" NIL \"jane\" \"example.com\")) ((\"Jane Doe\" NIL \"jane\" \"example.com\")) ((NIL NIL \"dev\" \"debtflow.co.za\")) NIL NIL \"652E7B61-60F6-421C-B954-4178BB769B27.example.com\" \"<28D03E0E-47EE-4AEF-BDE6-54ADB0EF28FD.example.com>\"))\r\n",
         "A003 OK Success\r\n"
       ])
       |> TestServer.on("A004 LOGOUT\r\n", [
@@ -573,13 +572,13 @@ defmodule Mailroom.IMAPTest do
     {:ok, msgs} =
       client
       |> IMAP.select(:inbox)
-      |> IMAP.fetch(1, :envelope)
+      |> IMAP.fetch(1..2, :envelope)
 
     assert msgs == [
              {1,
               %{
                 envelope: %Envelope{
-                  date: Timex.parse!("Wed, 26 Oct 2016 14:23:14 +0200", "{RFC1123}"),
+                  date: {{2016, 10, 26}, {14, 23, 14}},
                   subject: "Test 1",
                   from: [{"John Doe", "john", "example.com"}],
                   sender: [{"John Doe", "john", "example.com"}],
@@ -587,8 +586,23 @@ defmodule Mailroom.IMAPTest do
                   to: [{nil, "dev", "debtflow.co.za"}],
                   cc: [],
                   bcc: [],
-                  in_reply_to: [],
+                  in_reply_to: nil,
                   message_id: "<B042B704-E13E-44A2-8FEC-67A43B6DD6DB@example.com>"
+                }
+              }},
+             {2,
+              %{
+                envelope: %Envelope{
+                  date: {{2016, 10, 26}, {14, 24, 15}},
+                  subject: "Test 2",
+                  from: [{"Jane Doe", "jane", "example.com"}],
+                  sender: [{"Jane Doe", "jane", "example.com"}],
+                  reply_to: [{"Jane Doe", "jane", "example.com"}],
+                  to: [{nil, "dev", "debtflow.co.za"}],
+                  cc: [],
+                  bcc: [],
+                  in_reply_to: "652E7B61-60F6-421C-B954-4178BB769B27.example.com",
+                  message_id: "<28D03E0E-47EE-4AEF-BDE6-54ADB0EF28FD.example.com>"
                 }
               }}
            ]

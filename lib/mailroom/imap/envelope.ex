@@ -10,7 +10,7 @@ defmodule Mailroom.IMAP.Envelope do
     [date, subject, from, sender, reply_to, to, cc, bcc, in_reply_to, message_id] = list
 
     %__MODULE__{
-      date: parse_datetime(date),
+      date: Mail.Parsers.RFC2822.erl_from_timestamp(date),
       subject: subject,
       from: parse_addresses(from),
       sender: parse_addresses(sender),
@@ -18,7 +18,7 @@ defmodule Mailroom.IMAP.Envelope do
       to: parse_addresses(to),
       cc: parse_addresses(cc),
       bcc: parse_addresses(bcc),
-      in_reply_to: parse_addresses(in_reply_to),
+      in_reply_to: in_reply_to,
       message_id: message_id
     }
   end

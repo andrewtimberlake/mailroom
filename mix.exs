@@ -46,7 +46,7 @@ defmodule Mailroom.Mixfile do
   # Type "mix help deps" for more examples and options
   defp deps do
     [
-      {:timex, "~> 3.4", optional: true},
+      {:mail, "~> 0.2"},
       # DEV
       {:credo, "~> 1.0", only: :dev},
       # Docs
