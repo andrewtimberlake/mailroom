@@ -160,11 +160,11 @@ defmodule Mailroom.IMAP do
   def each(pid, func) do
     emails = email_count(pid)
 
-    if emails > 0,
-      do:
-        fetch(pid, 1..emails, [:envelope], fn {msg_id, %{envelope: envelope}} ->
-          func.({msg_id, envelope})
-        end)
+    if emails > 0 do
+      fetch(pid, 1..emails, [:envelope], fn {msg_id, %{envelope: envelope}} ->
+        func.({msg_id, envelope})
+      end)
+    end
 
     pid
   end
@@ -257,64 +257,64 @@ defmodule Mailroom.IMAP do
   def handle_call({:examine, mailbox}, from, state),
     do: {:noreply, send_command(from, ["EXAMINE", " ", mailbox], %{state | temp: mailbox})}
 
-  def handle_call({:list, reference, mailbox_name}, from, state),
-    do:
-      {:noreply,
-       send_command(
-         from,
-         ["LIST", " ", quote_string(reference), " ", quote_string(mailbox_name)],
-         state
-       )}
+  def handle_call({:list, reference, mailbox_name}, from, state) do
+    {:noreply,
+     send_command(
+       from,
+       ["LIST", " ", quote_string(reference), " ", quote_string(mailbox_name)],
+       state
+     )}
+  end
 
-  def handle_call({:status, mailbox_name, items}, from, state),
-    do:
-      {:noreply,
-       send_command(
-         from,
-         ["STATUS", " ", quote_string(mailbox_name), " ", items_to_list(items)],
-         state
-       )}
+  def handle_call({:status, mailbox_name, items}, from, state) do
+    {:noreply,
+     send_command(
+       from,
+       ["STATUS", " ", quote_string(mailbox_name), " ", items_to_list(items)],
+       state
+     )}
+  end
 
-  def handle_call({:fetch, sequence, items}, from, state),
-    do:
-      {:noreply,
-       send_command(from, ["FETCH", " ", to_sequence(sequence), " ", items_to_list(items)], %{
-         state
-         | temp: []
-       })}
+  def handle_call({:fetch, sequence, items}, from, state) do
+    {:noreply,
+     send_command(from, ["FETCH", " ", to_sequence(sequence), " ", items_to_list(items)], %{
+       state
+       | temp: []
+     })}
+  end
 
   def handle_call({:search, query}, from, state),
     do: {:noreply, send_command(from, ["SEARCH", " ", query], %{state | temp: []})}
 
   [remove_flags: "-FLAGS", add_flags: "+FLAGS", set_flags: "FLAGS"]
   |> Enum.each(fn {func_name, command} ->
-    def handle_call({unquote(func_name), sequence, flags, opts}, from, state),
-      do:
-        {:noreply,
-         send_command(
-           from,
-           [
-             "STORE",
-             " ",
-             to_sequence(sequence),
-             " ",
-             unquote(command),
-             store_silent(opts),
-             " ",
-             flags_to_list(flags)
-           ],
-           %{state | temp: []}
-         )}
-  end)
-
-  def handle_call({:copy, sequence, mailbox_name}, from, state),
-    do:
+    def handle_call({unquote(func_name), sequence, flags, opts}, from, state) do
       {:noreply,
        send_command(
          from,
-         ["COPY", " ", to_sequence(sequence), " ", quote_string(mailbox_name)],
-         state
+         [
+           "STORE",
+           " ",
+           to_sequence(sequence),
+           " ",
+           unquote(command),
+           store_silent(opts),
+           " ",
+           flags_to_list(flags)
+         ],
+         %{state | temp: []}
        )}
+    end
+  end)
+
+  def handle_call({:copy, sequence, mailbox_name}, from, state) do
+    {:noreply,
+     send_command(
+       from,
+       ["COPY", " ", to_sequence(sequence), " ", quote_string(mailbox_name)],
+       state
+     )}
+  end
 
   def handle_call(:expunge, from, state),
     do: {:noreply, send_command(from, "EXPUNGE", state)}
@@ -593,26 +593,26 @@ defmodule Mailroom.IMAP do
          %{command: "SELECT", caller: caller},
          msg,
          %{temp: temp} = state
-       ),
-       do:
-         send_reply(caller, msg, %{
-           remove_command_from_state(state, cmd_tag)
-           | state: :selected,
-             mailbox: parse_mailbox({temp, msg})
-         })
+       ) do
+    send_reply(caller, msg, %{
+      remove_command_from_state(state, cmd_tag)
+      | state: :selected,
+        mailbox: parse_mailbox({temp, msg})
+    })
+  end
 
   defp process_command_response(
          cmd_tag,
          %{command: "EXAMINE", caller: caller},
          msg,
          %{temp: temp} = state
-       ),
-       do:
-         send_reply(caller, msg, %{
-           remove_command_from_state(state, cmd_tag)
-           | state: :selected,
-             mailbox: parse_mailbox({temp, msg})
-         })
+       ) do
+    send_reply(caller, msg, %{
+      remove_command_from_state(state, cmd_tag)
+      | state: :selected,
+        mailbox: parse_mailbox({temp, msg})
+    })
+  end
 
   defp process_command_response(
          cmd_tag,
@@ -669,15 +669,15 @@ defmodule Mailroom.IMAP do
   defp process_command_response(cmd_tag, %{command: "EXPUNGE", caller: caller}, msg, state),
     do: send_reply(caller, msg, remove_command_from_state(state, cmd_tag))
 
-  defp process_command_response(cmd_tag, %{command: "CLOSE", caller: caller}, msg, state),
-    do:
-      send_reply(caller, msg, %{
-        remove_command_from_state(state, cmd_tag)
-        | state: :authenticated,
-          mailbox: nil
-      })
+  defp process_command_response(cmd_tag, %{command: "CLOSE", caller: caller}, msg, state) do
+    send_reply(caller, msg, %{
+      remove_command_from_state(state, cmd_tag)
+      | state: :authenticated,
+        mailbox: nil
+    })
+  end
 
-  defp process_command_response(cmd_tag, %{command: "IDLE", caller: caller}, msg, state) do
+  defp process_command_response(cmd_tag, %{command: "IDLE", caller: caller}, _msg, state) do
     send_reply(caller, :ok, %{
       remove_command_from_state(state, cmd_tag)
       | idle_caller: nil,
