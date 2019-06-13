@@ -4,6 +4,7 @@ defmodule Mailroom.IMAPTest do
 
   alias Mailroom.{IMAP, TestServer}
   alias Mailroom.IMAP.Envelope
+  alias Mailroom.IMAP.BodyStructure.Part
 
   @debug false
 
@@ -610,7 +611,363 @@ defmodule Mailroom.IMAPTest do
     IMAP.logout(client)
   end
 
-  test "FETCH body" do
+  # FETCH result examples 2..10 from http://sgerwk.altervista.org/imapbodystructure.html
+  test "FETCH BODYSTRUCTURE" do
+    server = TestServer.start(ssl: true)
+
+    TestServer.expect(server, fn expectations ->
+      expectations
+      |> TestServer.on(:connect, "* OK IMAP ready\r\n")
+      |> TestServer.on("A001 LOGIN \"test@example.com\" \"P@55w0rD\"\r\n", [
+        "* CAPABILITY (IMAPrev4)\r\n",
+        "A001 OK test@example.com authenticated (Success)\r\n"
+      ])
+      |> TestServer.on("A002 SELECT INBOX\r\n", [
+        "* FLAGS (\\Flagged \\Draft \\Deleted \\Seen)\r\n",
+        "* OK [PERMANENTFLAGS (\\Flagged \\Draft \\Deleted \\Seen \\*)] Flags permitted\r\n",
+        "* 2 EXISTS\r\n",
+        "* 1 RECENT\r\n",
+        "A002 OK [READ-WRITE] INBOX selected. (Success)\r\n"
+      ])
+      |> TestServer.on("A003 FETCH 1:10 (BODYSTRUCTURE)\r\n", [
+        "* 1 FETCH (BODYSTRUCTURE ((\"TEXT\" \"PLAIN\" (\"CHARSET\" \"utf-8\") NIL NIL \"7BIT\" 438 9 NIL NIL NIL)(\"APPLICATION\" \"OCTET-STREAM\" (\"NAME\" \"Image.pdf\") NIL NIL \"BASE64\" 81800 NIL (\"ATTACHMENT\" (\"FILENAME\" \"Image.pdf\")) NIL) \"MIXED\" (\"BOUNDARY\" \"abcdfwefjsdvsdfg\") NIL NIL))\r\n",
+        "* 2 FETCH (BODYSTRUCTURE (\"TEXT\" \"PLAIN\" (\"CHARSET\" \"iso-8859-1\") NIL NIL \"QUOTED-PRINTABLE\" 1315 42 NIL NIL NIL NIL))\r\n",
+        "* 3 FETCH (BODYSTRUCTURE ((\"TEXT\" \"PLAIN\" (\"CHARSET\" \"iso-8859-1\") NIL NIL \"QUOTED-PRINTABLE\" 2234 63 NIL NIL NIL NIL)(\"TEXT\" \"HTML\" (\"CHARSET\" \"iso-8859-1\") NIL NIL \"QUOTED-PRINTABLE\" 2987 52 NIL NIL NIL NIL) \"ALTERNATIVE\" (\"BOUNDARY\" \"d3438gr7324\") NIL NIL NIL))\r\n",
+        "* 4 FETCH (BODYSTRUCTURE ((\"TEXT\" \"HTML\" (\"CHARSET\" \"US-ASCII\") NIL NIL \"7BIT\" 119 2 NIL (\"INLINE\" NIL) NIL)(\"IMAGE\" \"JPEG\" (\"NAME\" \"4356415.jpg\") \"<0__=rhksjt>\" NIL \"BASE64\" 143804 NIL (\"INLINE\" (\"FILENAME\" \"4356415.jpg\")) NIL) \"RELATED\" (\"BOUNDARY\" \"0__=5tgd3d\") (\"INLINE\" NIL) NIL))\r\n",
+        "* 5 FETCH (BODYSTRUCTURE ((\"TEXT\" \"PLAIN\" (\"CHARSET\" \"ISO-8859-1\" \"FORMAT\" \"flowed\") NIL NIL \"QUOTED-PRINTABLE\" 2815 73 NIL NIL NIL NIL)((\"TEXT\" \"HTML\" (\"CHARSET\" \"ISO-8859-1\") NIL NIL \"QUOTED-PRINTABLE\" 4171 66 NIL NIL NIL NIL)(\"IMAGE\" \"JPEG\" (\"NAME\" \"image.jpg\") \"<3245dsf7435>\" NIL \"BASE64\" 189906 NIL NIL NIL NIL)(\"IMAGE\" \"GIF\" (\"NAME\" \"other.gif\") \"<32f6324f>\" NIL \"BASE64\" 1090 NIL NIL NIL NIL) \"RELATED\" (\"BOUNDARY\" \"--=sdgqgt\") NIL NIL NIL) \"ALTERNATIVE\" (\"BOUNDARY\" \"--=u5sfrj\") NIL NIL NIL))\r\n",
+        "* 6 FETCH (BODYSTRUCTURE (((\"TEXT\" \"PLAIN\" (\"CHARSET\" \"ISO-8859-1\") NIL NIL \"QUOTED-PRINTABLE\" 471 28 NIL NIL NIL)(\"TEXT\" \"HTML\" (\"CHARSET\" \"ISO-8859-1\") NIL NIL \"QUOTED-PRINTABLE\" 1417 36 NIL (\"INLINE\" NIL) NIL) \"ALTERNATIVE\" (\"BOUNDARY\" \"1__=hqjksdm\") NIL NIL)(\"IMAGE\" \"GIF\" (\"NAME\" \"image.gif\") \"<1__=cxdf2f>\" NIL \"BASE64\" 50294 NIL (\"INLINE\" (\"FILENAME\" \"image.gif\")) NIL) \"RELATED\" (\"BOUNDARY\" \"0__=hqjksdm\") NIL NIL))\r\n",
+        "* 7 FETCH (BODYSTRUCTURE ((\"TEXT\" \"HTML\" (\"CHARSET\" \"ISO-8859-1\") NIL NIL \"QUOTED-PRINTABLE\" 4692 69 NIL NIL NIL NIL)(\"APPLICATION\" \"PDF\" (\"NAME\" \"pages.pdf\") NIL NIL \"BASE64\" 38838 NIL (\"attachment\" (\"FILENAME\" \"pages.pdf\")) NIL NIL) \"MIXED\" (\"BOUNDARY\" \"----=6fgshr\") NIL NIL NIL))\r\n",
+        "* 8 FETCH (BODYSTRUCTURE (((\"TEXT\" \"PLAIN\" (\"CHARSET\" \"UTF-8\") NIL NIL \"QUOTED-PRINTABLE\" 403 6 NIL NIL NIL NIL)(\"TEXT\" \"HTML\" (\"CHARSET\" \"UTF-8\") NIL NIL \"QUOTED-PRINTABLE\" 421 6 NIL NIL NIL NIL) \"ALTERNATIVE\" (\"BOUNDARY\" \"----=fghgf3\") NIL NIL NIL)(\"APPLICATION\" \"MSWORD\" (\"NAME\" \"letter.doc\") NIL NIL \"BASE64\" 110000 NIL (\"attachment\" (\"FILENAME\" \"letter.doc\" \"SIZE\" \"80384\")) NIL NIL) \"MIXED\" (\"BOUNDARY\" \"----=y34fgl\") NIL NIL NIL))\r\n",
+        "* 9 FETCH (BODYSTRUCTURE ((((\"TEXT\" \"PLAIN\" (\"CHARSET\" \"ISO-8859-1\") NIL NIL \"QUOTED-PRINTABLE\" 833 30 NIL NIL NIL)(\"TEXT\" \"HTML\" (\"CHARSET\" \"ISO-8859-1\") NIL NIL \"QUOTED-PRINTABLE\" 3412 62 NIL (\"INLINE\" NIL) NIL) \"ALTERNATIVE\" (\"BOUNDARY\" \"2__=fgrths\") NIL NIL)(\"IMAGE\" \"GIF\" (\"NAME\" \"485039.gif\") \"<2__=lgkfjr>\" NIL \"BASE64\" 64 NIL (\"INLINE\" (\"FILENAME\" \"485039.gif\")) NIL) \"RELATED\" (\"BOUNDARY\" \"1__=fgrths\") NIL NIL)(\"APPLICATION\" \"PDF\" (\"NAME\" \"title.pdf\") \"<1__=lgkfjr>\" NIL \"BASE64\" 333980 NIL (\"ATTACHMENT\" (\"FILENAME\" \"title.pdf\")) NIL) \"MIXED\" (\"BOUNDARY\" \"0__=fgrths\") NIL NIL))\r\n",
+        "* 10 FETCH (BODYSTRUCTURE ((\"TEXT\" \"HTML\" NIL NIL NIL \"7BIT\" 151 0 NIL NIL NIL) \"MIXED\" (\"BOUNDARY\" \"----=rfsewr\") NIL NIL))\r\n",
+        "A003 OK Success\r\n"
+      ])
+      |> TestServer.on("A004 LOGOUT\r\n", [
+        "* BYE We're out of here\r\n",
+        "A004 OK Logged out\r\n"
+      ])
+    end)
+
+    assert {:ok, client} =
+             IMAP.connect(server.address, "test@example.com", "P@55w0rD",
+               port: server.port,
+               ssl: true,
+               debug: @debug
+             )
+
+    {:ok, msgs} =
+      client
+      |> IMAP.select(:inbox)
+      |> IMAP.fetch(1..10, :body_structure)
+
+    IMAP.logout(client)
+
+    assert [
+             {1,
+              %{
+                body_structure: %{
+                  multipart: true,
+                  type: "mixed",
+                  params: %{},
+                  parts: [
+                    %{
+                      section: "1",
+                      type: "text/plain",
+                      params: %{"charset" => "utf-8"}
+                    },
+                    %{
+                      section: "2",
+                      type: "application/octet-stream",
+                      params: %{"name" => "Image.pdf"},
+                      disposition: "attachment",
+                      file_name: "Image.pdf"
+                    }
+                  ]
+                }
+              }},
+             {2,
+              %{
+                body_structure: %Part{
+                  multipart: false,
+                  params: %{"charset" => "iso-8859-1"},
+                  parts: [],
+                  type: "text/plain"
+                }
+              }},
+             {3,
+              %{
+                body_structure: %Part{
+                  multipart: true,
+                  params: %{},
+                  parts: [
+                    %Part{
+                      multipart: false,
+                      params: %{"charset" => "iso-8859-1"},
+                      parts: [],
+                      section: "1",
+                      type: "text/plain"
+                    },
+                    %Part{
+                      multipart: false,
+                      params: %{"charset" => "iso-8859-1"},
+                      parts: [],
+                      section: "2",
+                      type: "text/html"
+                    }
+                  ],
+                  type: "alternative"
+                }
+              }},
+             {4,
+              %{
+                body_structure: %Part{
+                  multipart: true,
+                  params: %{},
+                  parts: [
+                    %Part{
+                      multipart: false,
+                      params: %{"charset" => "US-ASCII"},
+                      parts: [],
+                      section: "1",
+                      type: "text/html"
+                    },
+                    %Part{
+                      multipart: false,
+                      params: %{"name" => "4356415.jpg"},
+                      parts: [],
+                      section: "2",
+                      type: "image/jpeg"
+                    }
+                  ],
+                  type: "related"
+                }
+              }},
+             {5,
+              %{
+                body_structure: %Part{
+                  multipart: true,
+                  params: %{},
+                  parts: [
+                    %Part{
+                      multipart: false,
+                      params: %{
+                        "charset" => "ISO-8859-1",
+                        "format" => "flowed"
+                      },
+                      parts: [],
+                      section: "1",
+                      type: "text/plain"
+                    },
+                    %Part{
+                      multipart: true,
+                      params: %{},
+                      parts: [
+                        %Part{
+                          multipart: false,
+                          params: %{"charset" => "ISO-8859-1"},
+                          parts: [],
+                          section: "2.1",
+                          type: "text/html"
+                        },
+                        %Part{
+                          multipart: false,
+                          params: %{"name" => "image.jpg"},
+                          parts: [],
+                          section: "2.2",
+                          type: "image/jpeg"
+                        },
+                        %Part{
+                          multipart: false,
+                          params: %{"name" => "other.gif"},
+                          parts: [],
+                          section: "2.3",
+                          type: "image/gif"
+                        }
+                      ],
+                      section: "2",
+                      type: "related"
+                    }
+                  ],
+                  type: "alternative"
+                }
+              }},
+             {6,
+              %{
+                body_structure: %Part{
+                  multipart: true,
+                  params: %{},
+                  parts: [
+                    %Part{
+                      multipart: true,
+                      params: %{},
+                      parts: [
+                        %Part{
+                          multipart: false,
+                          params: %{"charset" => "ISO-8859-1"},
+                          parts: [],
+                          section: "1.1",
+                          type: "text/plain"
+                        },
+                        %Part{
+                          multipart: false,
+                          params: %{"charset" => "ISO-8859-1"},
+                          parts: [],
+                          section: "1.2",
+                          type: "text/html"
+                        }
+                      ],
+                      section: "1",
+                      type: "alternative"
+                    },
+                    %Part{
+                      multipart: false,
+                      params: %{"name" => "image.gif"},
+                      parts: [],
+                      section: "2",
+                      type: "image/gif"
+                    }
+                  ],
+                  type: "related"
+                }
+              }},
+             {7,
+              %{
+                body_structure: %Part{
+                  multipart: true,
+                  params: %{},
+                  parts: [
+                    %Part{
+                      multipart: false,
+                      params: %{"charset" => "ISO-8859-1"},
+                      parts: [],
+                      section: "1",
+                      type: "text/html"
+                    },
+                    %Part{
+                      multipart: false,
+                      params: %{"name" => "pages.pdf"},
+                      parts: [],
+                      section: "2",
+                      type: "application/pdf"
+                    }
+                  ],
+                  type: "mixed"
+                }
+              }},
+             {8,
+              %{
+                body_structure: %Part{
+                  multipart: true,
+                  params: %{},
+                  parts: [
+                    %Part{
+                      multipart: true,
+                      params: %{},
+                      parts: [
+                        %Part{
+                          multipart: false,
+                          params: %{"charset" => "UTF-8"},
+                          parts: [],
+                          section: "1.1",
+                          type: "text/plain"
+                        },
+                        %Part{
+                          multipart: false,
+                          params: %{"charset" => "UTF-8"},
+                          parts: [],
+                          section: "1.2",
+                          type: "text/html"
+                        }
+                      ],
+                      section: "1",
+                      type: "alternative"
+                    },
+                    %Part{
+                      multipart: false,
+                      params: %{"name" => "letter.doc"},
+                      parts: [],
+                      section: "2",
+                      type: "application/msword"
+                    }
+                  ],
+                  type: "mixed"
+                }
+              }},
+             {9,
+              %{
+                body_structure: %Part{
+                  multipart: true,
+                  params: %{},
+                  parts: [
+                    %Part{
+                      multipart: true,
+                      params: %{},
+                      parts: [
+                        %Part{
+                          multipart: true,
+                          params: %{},
+                          parts: [
+                            %Part{
+                              multipart: false,
+                              params: %{"charset" => "ISO-8859-1"},
+                              parts: [],
+                              section: "1.1.1",
+                              type: "text/plain"
+                            },
+                            %Part{
+                              multipart: false,
+                              params: %{"charset" => "ISO-8859-1"},
+                              parts: [],
+                              section: "1.1.2",
+                              type: "text/html"
+                            }
+                          ],
+                          section: "1.1",
+                          type: "alternative"
+                        },
+                        %Part{
+                          multipart: false,
+                          params: %{"name" => "485039.gif"},
+                          parts: [],
+                          section: "1.2",
+                          type: "image/gif"
+                        }
+                      ],
+                      section: "1",
+                      type: "related"
+                    },
+                    %Part{
+                      multipart: false,
+                      params: %{"name" => "title.pdf"},
+                      parts: [],
+                      section: "2",
+                      type: "application/pdf"
+                    }
+                  ],
+                  type: "mixed"
+                }
+              }},
+             {10,
+              %{
+                body_structure: %Part{
+                  multipart: true,
+                  params: %{},
+                  parts: [
+                    %Part{
+                      multipart: false,
+                      params: %{},
+                      parts: [],
+                      section: "1",
+                      type: "text/html"
+                    }
+                  ],
+                  type: "mixed"
+                }
+              }}
+           ] = msgs
+  end
+
+  test "FETCH body text" do
     server = TestServer.start(ssl: true)
 
     TestServer.expect(server, fn expectations ->

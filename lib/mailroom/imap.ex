@@ -3,7 +3,7 @@ defmodule Mailroom.IMAP do
   use GenServer
 
   import Mailroom.IMAP.Utils
-  alias Mailroom.IMAP.Envelope
+  alias Mailroom.IMAP.{Envelope, BodyStructure}
 
   defmodule State do
     @moduledoc false
@@ -503,6 +503,9 @@ defmodule Mailroom.IMAP do
 
   defp parse_fetch_item(:envelope, envelope),
     do: {:envelope, Envelope.new(envelope)}
+
+  defp parse_fetch_item(:body_structure, body_structure),
+    do: {:body_structure, BodyStructure.new(body_structure)}
 
   defp parse_fetch_item(key, value),
     do: {key, value}
