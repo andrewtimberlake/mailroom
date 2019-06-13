@@ -575,16 +575,44 @@ defmodule Mailroom.IMAPTest do
       |> IMAP.select(:inbox)
       |> IMAP.fetch(1..2, :envelope)
 
-    assert msgs == [
+    assert [
              {1,
               %{
                 envelope: %Envelope{
                   date: {{2016, 10, 26}, {14, 23, 14}},
                   subject: "Test 1",
-                  from: [{"John Doe", "john", "example.com"}],
-                  sender: [{"John Doe", "john", "example.com"}],
-                  reply_to: [{"John Doe", "john", "example.com"}],
-                  to: [{nil, "dev", "debtflow.co.za"}],
+                  from: [
+                    %{
+                      name: "John Doe",
+                      mailbox_name: "john",
+                      host_name: "example.com",
+                      email: "john@example.com"
+                    }
+                  ],
+                  sender: [
+                    %{
+                      name: "John Doe",
+                      mailbox_name: "john",
+                      host_name: "example.com",
+                      email: "john@example.com"
+                    }
+                  ],
+                  reply_to: [
+                    %{
+                      name: "John Doe",
+                      mailbox_name: "john",
+                      host_name: "example.com",
+                      email: "john@example.com"
+                    }
+                  ],
+                  to: [
+                    %{
+                      name: nil,
+                      mailbox_name: "dev",
+                      host_name: "debtflow.co.za",
+                      email: "dev@debtflow.co.za"
+                    }
+                  ],
                   cc: [],
                   bcc: [],
                   in_reply_to: nil,
@@ -596,17 +624,45 @@ defmodule Mailroom.IMAPTest do
                 envelope: %Envelope{
                   date: {{2016, 10, 26}, {14, 24, 15}},
                   subject: "Test 2",
-                  from: [{"Jane Doe", "jane", "example.com"}],
-                  sender: [{"Jane Doe", "jane", "example.com"}],
-                  reply_to: [{"Jane Doe", "jane", "example.com"}],
-                  to: [{nil, "dev", "debtflow.co.za"}],
+                  from: [
+                    %{
+                      name: "Jane Doe",
+                      mailbox_name: "jane",
+                      host_name: "example.com",
+                      email: "jane@example.com"
+                    }
+                  ],
+                  sender: [
+                    %{
+                      name: "Jane Doe",
+                      mailbox_name: "jane",
+                      host_name: "example.com",
+                      email: "jane@example.com"
+                    }
+                  ],
+                  reply_to: [
+                    %{
+                      name: "Jane Doe",
+                      mailbox_name: "jane",
+                      host_name: "example.com",
+                      email: "jane@example.com"
+                    }
+                  ],
+                  to: [
+                    %{
+                      name: nil,
+                      mailbox_name: "dev",
+                      host_name: "debtflow.co.za",
+                      email: "dev@debtflow.co.za"
+                    }
+                  ],
                   cc: [],
                   bcc: [],
                   in_reply_to: "652E7B61-60F6-421C-B954-4178BB769B27.example.com",
                   message_id: "<28D03E0E-47EE-4AEF-BDE6-54ADB0EF28FD.example.com>"
                 }
               }}
-           ]
+           ] = msgs
 
     IMAP.logout(client)
   end
