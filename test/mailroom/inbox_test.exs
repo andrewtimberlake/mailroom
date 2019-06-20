@@ -28,6 +28,11 @@ defmodule Mailroom.InboxTest do
       send(pid, {:match_and_fetch, msg_id, String.trim(msg)})
       :done
     end
+
+    def match_all(%{id: msg_id, assigns: %{test_pid: pid}}) do
+      send(pid, {:match_all, msg_id})
+      :done
+    end
   end
 
   defmodule TestMailRouterEnvelopeOnly do
@@ -63,6 +68,8 @@ defmodule Mailroom.InboxTest do
 
     match([subject: "To be fetched"], TestMailProcessor, :match_and_fetch)
     match([has_attachment: true], TestMailProcessor, :match_has_attachment)
+
+    match([], TestMailProcessor, :match_all)
   end
 
   test "Can match on any TO" do
@@ -230,13 +237,14 @@ defmodule Mailroom.InboxTest do
       |> TestServer.on("A002 SELECT INBOX\r\n", [
         "* FLAGS (\\Flagged \\Draft \\Deleted \\Seen)\r\n",
         "* OK [PERMANENTFLAGS (\\Flagged \\Draft \\Deleted \\Seen \\*)] Flags permitted\r\n",
-        "* 2 EXISTS\r\n",
+        "* 3 EXISTS\r\n",
         "* 0 RECENT\r\n",
         "A002 OK [READ-WRITE] INBOX selected. (Success)\r\n"
       ])
-      |> TestServer.on("A003 FETCH 1:2 (BODYSTRUCTURE ENVELOPE)\r\n", [
+      |> TestServer.on("A003 FETCH 1:3 (BODYSTRUCTURE ENVELOPE)\r\n", [
         ~s[* 1 FETCH (ENVELOPE ("Mon, 10 Jun 2019 11:57:36 +0200" "Attached." (("Andrew Timberlake" NIL "andrew" "internuity.net")) (("Andrew Timberlake" NIL "andrew" "internuity.net")) (("Andrew Timberlake" NIL "andrew" "internuity.net")) ((NIL NIL "george" "example.com")) NIL NIL "<f69b912d-310b-4133-b526-07f715242db6@Spark>" "<4cff0831-67f5-4457-b60a-3331ba893348@Spark>") BODYSTRUCTURE ((("TEXT" "PLAIN" ("CHARSET" "utf-8") NIL NIL "7BIT" 8 1 NIL ("INLINE" NIL) NIL)(("TEXT" "HTML" ("CHARSET" "utf-8") NIL NIL "QUOTED-PRINTABLE" 293 6 NIL ("INLINE" NIL) NIL)("IMAGE" "PNG" NIL "<D0C5BB9CBFAE48E09727D1A67721F939>" NIL "BASE64" 3934 NIL ("INLINE" ("FILENAME" "3M-Logo.png")) NIL) "RELATED" ("BOUNDARY" "5cfe29a0_507ed7ab_d312") NIL NIL) "ALTERNATIVE" ("BOUNDARY" "5cfe29a0_2eb141f2_d312") NIL NIL)("APPLICATION" "OCTET-STREAM" NIL NIL NIL "BASE64" 2730568 NIL ("ATTACHMENT" ("FILENAME" "test.pdf")) NIL) "MIXED" ("BOUNDARY" "5cfe29a0_41b71efb_d312") NIL NIL))\r\n],
         ~s[* 2 FETCH (ENVELOPE ("Tue, 11 Jun 2019 09:21:23 +0200" "Test with multiple attachments" (("Andrew Timberlake" NIL "andrew" "internuity.net")) (("Andrew Timberlake" NIL "andrew" "internuity.net")) (("Andrew Timberlake" NIL "andrew" "internuity.net")) ((NIL NIL "george" "example.com")) NIL NIL "<60f5c212-a3a0-464d-b287-6d81f46a1359@Spark>" "<ada126ec-8244-4abd-b3bf-a793d456fd4e@Spark>") BODYSTRUCTURE ((("TEXT" "PLAIN" ("CHARSET" "utf-8") NIL NIL "7BIT" 9 1 NIL ("INLINE" NIL) NIL)("TEXT" "HTML" ("CHARSET" "utf-8") NIL NIL "QUOTED-PRINTABLE" 195 4 NIL ("INLINE" NIL) NIL) "ALTERNATIVE" ("BOUNDARY" "5cff5678_ded7263_d312") NIL NIL)("APPLICATION" "OCTET-STREAM" NIL NIL NIL "BASE64" 2 NIL ("ATTACHMENT" ("FILENAME" "test.csv")) NIL)("APPLICATION" "OCTET-STREAM" NIL NIL NIL "BASE64" 14348938 NIL ("ATTACHMENT" ("FILENAME" "test.doc")) NIL)("APPLICATION" "OCTET-STREAM" NIL NIL NIL "BASE64" 240 NIL ("ATTACHMENT" ("FILENAME" "test.mid")) NIL)("TEXT" "PLAIN" NIL NIL NIL "BASE64" 10 1 NIL ("ATTACHMENT" ("FILENAME" "test.txt")) NIL)("APPLICATION" "OCTET-STREAM" NIL NIL NIL "BASE64" 974 NIL ("ATTACHMENT" ("FILENAME" "test.wav")) NIL) "MIXED" ("BOUNDARY" "5cff5678_7fdcc233_d312") NIL NIL))\r\n],
+        "* 3 FETCH (ENVELOPE (\"Wed, 26 Oct 2016 14:24:15 +0200\" \"Testing 3\" ((\"Jane Doe\" NIL \"jane\" \"example.com\")) ((\"Jane Doe\" NIL \"jane\" \"example.com\")) ((\"Jane Doe\" NIL \"jane\" \"example.com\")) ((NIL NIL \"george\" \"example.com\")) NIL NIL \"652E7B61-60F6-421C-B954-4178BB769B27.example.com\" \"<28D03E0E-47EE-4AEF-BDE6-54ADB0EF28FD.example.com>\") BODYSTRUCTURE  (\"TEXT\" \"PLAIN\" (\"CHARSET\" \"iso-8859-1\") NIL NIL \"QUOTED-PRINTABLE\" 1315 42 NIL NIL NIL NIL))\r\n",
         "A003 OK Success\r\n"
       ])
       |> TestServer.on("A004 STORE 1 +FLAGS (\\Deleted)\r\n", [
@@ -247,37 +255,55 @@ defmodule Mailroom.InboxTest do
         "* 2 FETCH (FLAGS (\\Deleted))\r\n",
         "A005 OK Store completed\r\n"
       ])
-      |> TestServer.on("A006 EXPUNGE\r\n", [
+      |> TestServer.on("A006 STORE 3 +FLAGS (\\Deleted)\r\n", [
+        "* 2 FETCH (FLAGS (\\Deleted))\r\n",
+        "A006 OK Store completed\r\n"
+      ])
+      |> TestServer.on("A007 EXPUNGE\r\n", [
         "* 1 EXPUNGE\r\n",
         "* 2 EXPUNGE\r\n",
-        "A006 OK Expunge completed\r\n"
+        "* 3 EXPUNGE\r\n",
+        "A007 OK Expunge completed\r\n"
       ])
-      |> TestServer.on("A007 IDLE\r\n", [
+      |> TestServer.on("A008 IDLE\r\n", [
         "+ idling\r\n"
       ])
       |> TestServer.on("DONE\r\n", [
-        "A007 OK IDLE terminated\r\n"
+        "A008 OK IDLE terminated\r\n"
       ])
-      |> TestServer.on("A008 LOGOUT\r\n", [
+      |> TestServer.on("A009 LOGOUT\r\n", [
         "* BYE We're out of here\r\n",
-        "A008 OK Logged out\r\n"
+        "A009 OK Logged out\r\n"
       ])
     end)
 
-    ExUnit.CaptureLog.capture_log(fn ->
-      {:ok, pid} =
-        TestMailRouter.start_link(
-          server: server.address,
-          port: server.port,
-          ssl: true,
-          assigns: %{test_pid: self()},
-          debug: @debug
-        )
+    log =
+      ExUnit.CaptureLog.capture_log(fn ->
+        {:ok, pid} =
+          TestMailRouter.start_link(
+            server: server.address,
+            port: server.port,
+            ssl: true,
+            assigns: %{test_pid: self()},
+            debug: @debug
+          )
 
-      assert_receive({:matched_has_attachment, 1})
-      assert_receive({:matched_has_attachment, 2})
-      TestMailRouter.close(pid)
-    end)
+        assert_receive({:matched_has_attachment, 1})
+        assert_receive({:matched_has_attachment, 2})
+        assert_receive({:match_all, 3})
+        TestMailRouter.close(pid)
+      end)
+
+    assert log =~ "Processing 3 emails"
+
+    assert log =~
+             "Processing msg:1 TO:george@example.com FROM:andrew@internuity.net SUBJECT:Attached. -- Mailroom.InboxTest.TestMailProcessor#match_has_attachment -> :done"
+
+    assert log =~
+             "Processing msg:2 TO:george@example.com FROM:andrew@internuity.net SUBJECT:Test with multiple attachments -- Mailroom.InboxTest.TestMailProcessor#match_has_attachment -> :done"
+
+    assert log =~
+             "Processing msg:3 TO:george@example.com FROM:jane@example.com SUBJECT:Testing 3 -- Mailroom.InboxTest.TestMailProcessor#match_all -> :done"
   end
 
   test "Fetch email in handler" do
@@ -325,20 +351,24 @@ defmodule Mailroom.InboxTest do
       ])
     end)
 
-    log = ExUnit.CaptureLog.capture_log(fn ->
-      {:ok, pid} =
-        TestMailRouter.start_link(
-          server: server.address,
-          port: server.port,
-          ssl: true,
-          assigns: %{test_pid: self()},
-          debug: @debug
-        )
+    log =
+      ExUnit.CaptureLog.capture_log(fn ->
+        {:ok, pid} =
+          TestMailRouter.start_link(
+            server: server.address,
+            port: server.port,
+            ssl: true,
+            assigns: %{test_pid: self()},
+            debug: @debug
+          )
 
-      assert_receive({:match_and_fetch, 1, "Test msg"})
-      TestMailRouter.close(pid)
-    end)
+        assert_receive({:match_and_fetch, 1, "Test msg"})
+        TestMailRouter.close(pid)
+      end)
+
     assert log =~ "Processing 1 emails"
-    assert log =~ "Processing msg:1 TO:george@example.com FROM:andrew@internuity.net SUBJECT:To be fetched -- :done"
+
+    assert log =~
+             "Processing msg:1 TO:george@example.com FROM:andrew@internuity.net SUBJECT:To be fetched -- Mailroom.InboxTest.TestMailProcessor#match_and_fetch -> :done"
   end
 end

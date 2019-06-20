@@ -157,31 +157,21 @@ defmodule Mailroom.Inbox do
           Logger.info("Processing #{emails} emails")
 
           if emails > 0 do
-          Mailroom.IMAP.each(client, unquote(fetch_keys), fn {msg_id,
-                                                              %{
-                                                                envelope: %{
-                                                                  to: to,
-                                                                  from: from,
-                                                                  subject: subject
-                                                                }
-                                                              } = response} ->
-            # IO.inspect(response, label: "response")
+            Mailroom.IMAP.each(client, unquote(fetch_keys), fn {msg_id, response} ->
+              # IO.inspect(response, label: "response")
 
-            result = perform_match(client, msg_id, response, assigns)
-            Logger.info(fn ->
-              "Processing msg:#{msg_id} TO:#{log_email(to)} FROM:#{log_email(from)} SUBJECT:#{subject} -- #{inspect(result)}"
-            end)
-
-              case result do
+              case perform_match(client, msg_id, response, assigns) do
                 :done ->
                   Mailroom.IMAP.add_flags(client, msg_id, [:deleted])
+
                 :no_match ->
                   Mailroom.IMAP.add_flags(client, msg_id, [:seen])
               end
-          end)
+            end)
 
-          Mailroom.IMAP.expunge(client)
+            Mailroom.IMAP.expunge(client)
           end
+
           Logger.info("Entering IDLE")
           idle(client)
         end
@@ -192,26 +182,41 @@ defmodule Mailroom.Inbox do
         end
 
         def perform_match(client, msg_id, response, assigns \\ %{}) do
-          case match(response) do
-            :no_match ->
-              :no_match
+          {result, mod_fun} =
+            case match(response) do
+              :no_match ->
+                {:no_match, nil}
 
-            {module, function} ->
-              context = %MessageContext{
-                id: msg_id,
-                envelope: response[:envelope],
-                client: client,
-                assigns: assigns
-              }
+              {module, function} ->
+                context = %MessageContext{
+                  id: msg_id,
+                  envelope: response[:envelope],
+                  client: client,
+                  assigns: assigns
+                }
 
-              # Logger.debug("  match: #{module || __MODULE__}##{function}")
+                # Logger.debug("  match: #{module || __MODULE__}##{function}")
+                mod = module || __MODULE__
 
-              apply(module || __MODULE__, function, [context])
-          end
+                {apply(mod, function, [context]), {mod, function}}
+            end
+
+          Logger.info(fn ->
+            %{envelope: %{to: to, from: from, subject: subject}} = response
+
+            "Processing msg:#{msg_id} TO:#{log_email(to)} FROM:#{log_email(from)} SUBJECT:#{
+              subject
+            } -- #{log_mod_fun(mod_fun)} -> #{inspect(result)}"
+          end)
+
+          result
         end
 
         defp log_email([]), do: "Unknown"
         defp log_email([%{email: email} | _]), do: email
+
+        defp log_mod_fun(nil), do: ""
+        defp log_mod_fun({mod, fun}), do: "#{inspect(mod)}##{fun}"
       end
 
     [main_func | match_functions]
