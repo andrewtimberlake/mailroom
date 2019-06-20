@@ -14,6 +14,7 @@ defmodule Mailroom.Inbox do
     defstruct id: nil,
               type: :imap,
               envelope: nil,
+              client: nil,
               assigns: %{}
   end
 
@@ -155,6 +156,7 @@ defmodule Mailroom.Inbox do
           emails = Mailroom.IMAP.email_count(client)
           Logger.info("Processing #{emails} emails")
 
+          if emails > 0 do
           Mailroom.IMAP.each(client, unquote(fetch_keys), fn {msg_id,
                                                               %{
                                                                 envelope: %{
@@ -164,35 +166,48 @@ defmodule Mailroom.Inbox do
                                                                 }
                                                               } = response} ->
             # IO.inspect(response, label: "response")
-            # Logger.debug(fn ->
-            #   "Processing #{msg_id} TO:#{log_email(to)} FROM:#{log_email(from)} SUBJECT:#{subject}"
-            # end)
 
-            case get_match(response) do
-              :no_match ->
-                # Logger.warn("  no match")
-                nil
+            result = perform_match(client, msg_id, response, assigns)
+            Logger.info(fn ->
+              "Processing msg:#{msg_id} TO:#{log_email(to)} FROM:#{log_email(from)} SUBJECT:#{subject} -- #{inspect(result)}"
+            end)
 
-              {module, function} ->
-                context = %MessageContext{
-                  id: msg_id,
-                  envelope: response[:envelope],
-                  assigns: assigns
-                }
-
-                # Logger.debug("  match: #{module || __MODULE__}##{function}")
-
-                apply(module || __MODULE__, function, [context])
-            end
+              case result do
+                :done ->
+                  Mailroom.IMAP.add_flags(client, msg_id, [:deleted])
+                :no_match ->
+                  Mailroom.IMAP.add_flags(client, msg_id, [:seen])
+              end
           end)
 
+          Mailroom.IMAP.expunge(client)
+          end
           Logger.info("Entering IDLE")
           idle(client)
         end
 
-        def get_match(unquote(match_argument)) do
+        def match(unquote(match_argument)) do
           unquote(normalize)
           cond do: unquote(conditions)
+        end
+
+        def perform_match(client, msg_id, response, assigns \\ %{}) do
+          case match(response) do
+            :no_match ->
+              :no_match
+
+            {module, function} ->
+              context = %MessageContext{
+                id: msg_id,
+                envelope: response[:envelope],
+                client: client,
+                assigns: assigns
+              }
+
+              # Logger.debug("  match: #{module || __MODULE__}##{function}")
+
+              apply(module || __MODULE__, function, [context])
+          end
         end
 
         defp log_email([]), do: "Unknown"
