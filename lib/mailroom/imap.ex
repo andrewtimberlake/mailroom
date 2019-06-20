@@ -779,10 +779,13 @@ defmodule Mailroom.IMAP do
 
     %{
       state
-      | cmd_number: cmd_number + 1,
+      | cmd_number: increment_command_number(cmd_number),
         cmd_map: Map.put_new(cmd_map, cmd_tag, %{command: hd(List.wrap(command)), caller: caller})
     }
   end
+
+  defp increment_command_number(999), do: 1
+  defp increment_command_number(number), do: number + 1
 
   defp fetch_all_data(bytes, bytes, acc, state),
     do: :erlang.iolist_to_binary(Enum.reverse([get_next_line(state) | acc]))
