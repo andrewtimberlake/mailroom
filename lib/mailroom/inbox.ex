@@ -96,7 +96,7 @@ defmodule Mailroom.Inbox do
           )
 
         folder = Keyword.get(opts, :folder, :inbox)
-        Logger.info("Connecting #{folder} to #{server}")
+        Logger.info("Connecting to #{folder} on #{server}")
         IMAP.select(client, folder)
         process_mailbox(client, state)
 
@@ -204,9 +204,7 @@ defmodule Mailroom.Inbox do
           Logger.info(fn ->
             %{envelope: %{to: to, from: from, subject: subject}} = response
 
-            "Processing msg:#{msg_id} TO:#{log_email(to)} FROM:#{log_email(from)} SUBJECT:#{
-              subject
-            } -- #{log_mod_fun(mod_fun)} -> #{inspect(result)}"
+            "Processing msg:#{msg_id} TO:#{log_email(to)} FROM:#{log_email(from)} SUBJECT:#{inspect(subject)} using #{log_mod_fun(mod_fun)} -> #{inspect(result)}"
           end)
 
           result

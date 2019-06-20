@@ -297,13 +297,13 @@ defmodule Mailroom.InboxTest do
     assert log =~ "Processing 3 emails"
 
     assert log =~
-             "Processing msg:1 TO:george@example.com FROM:andrew@internuity.net SUBJECT:Attached. -- Mailroom.InboxTest.TestMailProcessor#match_has_attachment -> :done"
+             "Processing msg:1 TO:george@example.com FROM:andrew@internuity.net SUBJECT:\"Attached.\" using Mailroom.InboxTest.TestMailProcessor#match_has_attachment -> :done"
 
     assert log =~
-             "Processing msg:2 TO:george@example.com FROM:andrew@internuity.net SUBJECT:Test with multiple attachments -- Mailroom.InboxTest.TestMailProcessor#match_has_attachment -> :done"
+             "Processing msg:2 TO:george@example.com FROM:andrew@internuity.net SUBJECT:\"Test with multiple attachments\" using Mailroom.InboxTest.TestMailProcessor#match_has_attachment -> :done"
 
     assert log =~
-             "Processing msg:3 TO:george@example.com FROM:jane@example.com SUBJECT:Testing 3 -- Mailroom.InboxTest.TestMailProcessor#match_all -> :done"
+             "Processing msg:3 TO:george@example.com FROM:jane@example.com SUBJECT:\"Testing 3\" using Mailroom.InboxTest.TestMailProcessor#match_all -> :done"
   end
 
   test "Fetch email in handler" do
@@ -369,6 +369,6 @@ defmodule Mailroom.InboxTest do
     assert log =~ "Processing 1 emails"
 
     assert log =~
-             "Processing msg:1 TO:george@example.com FROM:andrew@internuity.net SUBJECT:To be fetched -- Mailroom.InboxTest.TestMailProcessor#match_and_fetch -> :done"
+             "Processing msg:1 TO:george@example.com FROM:andrew@internuity.net SUBJECT:\"To be fetched\" using Mailroom.InboxTest.TestMailProcessor#match_and_fetch -> :done"
   end
 end
