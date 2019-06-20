@@ -559,6 +559,9 @@ defmodule Mailroom.IMAP do
   defp to_sequence(number) when is_integer(number),
     do: Integer.to_string(number)
 
+  defp to_sequence(%Range{first: first, last: first}),
+    do: to_sequence(first)
+
   defp to_sequence(%Range{first: first, last: last}),
     do: [Integer.to_string(first), ":", Integer.to_string(last)]
 
