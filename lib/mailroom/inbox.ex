@@ -2,7 +2,7 @@ defmodule Mailroom.Inbox do
   require Logger
 
   defmodule Match do
-    defstruct patterns: [], module: nil, function: nil
+    defstruct patterns: [], module: nil, function: nil, fetch_mail: false
   end
 
   defmodule State do
@@ -13,7 +13,8 @@ defmodule Mailroom.Inbox do
     defstruct id: nil,
               type: :imap,
               mail_info: nil,
-              client: nil,
+              mail: nil,
+              message: nil,
               assigns: %{}
   end
 
@@ -125,6 +126,9 @@ defmodule Mailroom.Inbox do
         _ -> raise("A match block must have a call to process")
       end
 
+    {commands, matches} = Enum.split_with(matches, fn {func_name, _, _} -> func_name in ~w[fetch_mail]a end)
+    fetch_mail = Enum.any?(commands, fn {:fetch_mail, _, _} -> true; _ -> false end)
+
     {module, function} =
       case process do
         {:process, _, [module, function]} -> {module, function}
@@ -136,7 +140,8 @@ defmodule Mailroom.Inbox do
         %Match{
           patterns: unquote(Macro.escape(matches)),
           module: unquote(module),
-          function: unquote(function)
+          function: unquote(function),
+          fetch_mail: unquote(fetch_mail)
         }
         | @matches
       ]
@@ -147,13 +152,14 @@ defmodule Mailroom.Inbox do
     matches =
       Module.get_attribute(env.module, :matches)
       |> Enum.reverse()
-      |> Enum.map(fn %{patterns: patterns, module: module, function: function} ->
+      |> Enum.map(fn match ->
+      %{patterns: patterns, module: module, function: function, fetch_mail: fetch_mail} = match
         patterns =
           Enum.map(patterns, fn {func_name, context, arguments} ->
             {:&, [], [{:"match_#{func_name}", context, [{:&, [], [1]} | List.wrap(arguments)]}]}
           end)
 
-        {:{}, [], [patterns, module, function]}
+        {:{}, [], [patterns, module, function, fetch_mail]}
       end)
 
     quote location: :keep do
@@ -186,7 +192,7 @@ defmodule Mailroom.Inbox do
       def do_match(mail_info) do
         match =
           unquote(matches)
-          |> Enum.find(fn {patterns, _, _} ->
+          |> Enum.find(fn {patterns, _, _, _} ->
             Enum.all?(patterns, & &1.(mail_info))
           end)
 
@@ -194,12 +200,9 @@ defmodule Mailroom.Inbox do
           nil ->
             :no_match
 
-          {_, module, function} ->
-            {module, function}
+          {_, module, function, fetch_mail} ->
+            {module, function, fetch_mail}
         end
-
-        # unquote(normalize)
-        # cond do: unquote(conditions)
       end
 
       def perform_match(client, msg_id, mail_info, assigns \\ %{}) do
@@ -208,11 +211,14 @@ defmodule Mailroom.Inbox do
             :no_match ->
               {:no_match, nil}
 
-            {module, function} ->
+            {module, function, fetch_mail} ->
+              {mail, message} = if fetch_mail, do: fetch_mail(client, msg_id), else: {nil, nil}
+
               context = %MessageContext{
                 id: msg_id,
                 mail_info: mail_info,
-                client: client,
+                mail: mail,
+                message: message,
                 assigns: assigns
               }
 
@@ -231,6 +237,12 @@ defmodule Mailroom.Inbox do
         end)
 
         result
+      end
+
+      defp fetch_mail(client, msg_id) do
+        {:ok, [{^msg_id, %{"BODY[]" => mail}}]} =
+          Mailroom.IMAP.fetch(client, msg_id, "BODY.PEEK[]")
+        {mail, Mail.Parsers.RFC2822.parse(mail)}
       end
 
       defp log_email([]), do: "Unknown"

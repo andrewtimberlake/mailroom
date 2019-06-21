@@ -21,11 +21,8 @@ defmodule Mailroom.InboxTest do
       :done
     end
 
-    def match_and_fetch(%{id: msg_id, assigns: %{test_pid: pid}, client: client}) do
-      {:ok, [{msg_id, %{"BODY.PEEK[]" => msg}}]} =
-        Mailroom.IMAP.fetch(client, msg_id, "BODY.PEEK[]")
-
-      send(pid, {:match_and_fetch, msg_id, String.trim(msg)})
+    def match_and_fetch(%{id: msg_id, mail: mail, message: message, assigns: %{test_pid: pid}}) do
+      send(pid, {:match_and_fetch, msg_id, mail, message})
       :done
     end
 
@@ -63,6 +60,7 @@ defmodule Mailroom.InboxTest do
     match do
       subject("To be fetched")
 
+      fetch_mail
       process(TestMailProcessor, :match_and_fetch)
     end
 
@@ -342,7 +340,7 @@ defmodule Mailroom.InboxTest do
         "A003 OK Success\r\n"
       ])
       |> TestServer.on("A004 FETCH 1 (BODY.PEEK[])\r\n", [
-        "* 1 FETCH (BODY.PEEK[] {10}\r\nTest msg\r\n)\r\n",
+        "* 1 FETCH (BODY[] {17}\r\nSubject: Test\r\n\r\n)\r\n",
         "A004 OK Success\r\n"
       ])
       |> TestServer.on("A005 STORE 1 +FLAGS (\\Deleted)\r\n", [
@@ -376,7 +374,7 @@ defmodule Mailroom.InboxTest do
             debug: @debug
           )
 
-        assert_receive({:match_and_fetch, 1, "Test msg"})
+        assert_receive({:match_and_fetch, 1, <<"Subject: ", _rest::binary>>, %Mail.Message{}})
         TestMailRouter.close(pid)
       end)
 
