@@ -18,6 +18,19 @@ defmodule Mailroom.IMAP.Envelope do
       |> Enum.filter(& &1)
       |> Enum.join("@")
     end
+
+    def normalize(nil), do: nil
+    def normalize([]), do: []
+
+    def normalize(%__MODULE__{} = address) do
+      %{name: name, mailbox_name: mailbox_name, host_name: host_name} = address
+      new(downcase(name), downcase(mailbox_name), downcase(host_name))
+    end
+
+    def normalize([address | tail]), do: [normalize(address) | normalize(tail)]
+
+    defp downcase(nil), do: nil
+    defp downcase(string), do: String.downcase(string)
   end
 
   @doc ~S"""
@@ -39,6 +52,34 @@ defmodule Mailroom.IMAP.Envelope do
       message_id: message_id
     }
   end
+
+  def normalize(%__MODULE__{} = envelope) do
+    %{
+      from: from,
+      sender: sender,
+      reply_to: reply_to,
+      to: to,
+      cc: cc,
+      bcc: bcc,
+      in_reply_to: in_reply_to,
+      message_id: message_id
+    } = envelope
+
+    %{
+      envelope
+      | from: Address.normalize(from),
+        sender: Address.normalize(sender),
+        reply_to: Address.normalize(reply_to),
+        to: Address.normalize(to),
+        cc: Address.normalize(cc),
+        bcc: Address.normalize(bcc),
+        in_reply_to: downcase(in_reply_to),
+        message_id: downcase(message_id)
+    }
+  end
+
+  defp downcase(nil), do: nil
+  defp downcase(string), do: String.downcase(string)
 
   defp parse_addresses(nil), do: []
   defp parse_addresses([]), do: []
