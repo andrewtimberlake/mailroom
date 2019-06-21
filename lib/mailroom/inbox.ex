@@ -1,5 +1,4 @@
 defmodule Mailroom.Inbox do
-  alias Mailroom.IMAP.{Envelope, BodyStructure}
   require Logger
 
   defmodule Match do
@@ -13,7 +12,7 @@ defmodule Mailroom.Inbox do
   defmodule MessageContext do
     defstruct id: nil,
               type: :imap,
-              envelope: nil,
+              mail_info: nil,
               client: nil,
               assigns: %{}
   end
@@ -34,6 +33,7 @@ defmodule Mailroom.Inbox do
       import Mailroom.Inbox
       require Logger
       use GenServer
+      import Mailroom.Inbox.MatchUtils
 
       alias Mailroom.IMAP
 
@@ -111,248 +111,136 @@ defmodule Mailroom.Inbox do
     end
   end
 
-  defmacro match(patterns, module \\ nil, function) do
-    patterns = Macro.escape(patterns)
+  defmacro match(do: match_block) do
+    matches =
+      case match_block do
+        {:__block__, _, matches} -> matches
+        {:process, _, _} = process -> [process]
+        item -> [item]
+      end
+
+    {process, matches} =
+      case Enum.reverse(matches) do
+        [{:process, _, _} = process | matches] -> {process, Enum.reverse(matches)}
+        _ -> raise("A match block must have a call to process")
+      end
+
+    {module, function} =
+      case process do
+        {:process, _, [module, function]} -> {module, function}
+        {:process, _, [function]} -> {nil, function}
+      end
 
     quote do
       @matches [
-        %Match{patterns: unquote(patterns), module: unquote(module), function: unquote(function)}
+        %Match{
+          patterns: unquote(Macro.escape(matches)),
+          module: unquote(module),
+          function: unquote(function)
+        }
         | @matches
       ]
     end
   end
 
-  # All the Enum.reverse statements ensure that the functions generated follow the order of the match statements and the defined patterns
   defmacro __before_compile__(env) do
-    matches = Module.get_attribute(env.module, :matches)
-
-    match_keys = get_match_keys(matches)
-    match_functions = build_match_functions(matches)
-
-    conditions = build_condition_clauses(matches)
-
-    response_keys = [envelope: {:envelope, [], Elixir}]
-
-    response_keys =
-      if :has_attachment in match_keys,
-        do: Keyword.put(response_keys, :body_structure, {:body_structure, [], Elixir}),
-        else: response_keys
-
-    match_argument = {:%{}, [], response_keys}
-
-    normalize =
-      {:=, [],
-       [
-         {:envelope, [], Elixir},
-         {{:., [], [{:__aliases__, [alias: false], [Envelope]}, :normalize]}, [],
-          [{:envelope, [], Elixir}]}
-       ]}
-
-    fetch_keys = Keyword.keys(response_keys)
-
-    main_func =
-      quote location: :keep do
-        defp process_mailbox(client, %{assigns: assigns}) do
-          emails = Mailroom.IMAP.email_count(client)
-          Logger.info("Processing #{emails} emails")
-
-          if emails > 0 do
-            Mailroom.IMAP.each(client, unquote(fetch_keys), fn {msg_id, response} ->
-              # IO.inspect(response, label: "response")
-
-              case perform_match(client, msg_id, response, assigns) do
-                :done ->
-                  Mailroom.IMAP.add_flags(client, msg_id, [:deleted])
-
-                :no_match ->
-                  Mailroom.IMAP.add_flags(client, msg_id, [:seen])
-              end
-            end)
-
-            Mailroom.IMAP.expunge(client)
-          end
-
-          Logger.info("Entering IDLE")
-          idle(client)
-        end
-
-        def match(unquote(match_argument)) do
-          unquote(normalize)
-          cond do: unquote(conditions)
-        end
-
-        def perform_match(client, msg_id, response, assigns \\ %{}) do
-          {result, mod_fun} =
-            case match(response) do
-              :no_match ->
-                {:no_match, nil}
-
-              {module, function} ->
-                context = %MessageContext{
-                  id: msg_id,
-                  envelope: response[:envelope],
-                  client: client,
-                  assigns: assigns
-                }
-
-                # Logger.debug("  match: #{module || __MODULE__}##{function}")
-                mod = module || __MODULE__
-
-                {apply(mod, function, [context]), {mod, function}}
-            end
-
-          Logger.info(fn ->
-            %{envelope: %{to: to, from: from, subject: subject}} = response
-
-            "Processing msg:#{msg_id} TO:#{log_email(to)} FROM:#{log_email(from)} SUBJECT:#{inspect(subject)} using #{log_mod_fun(mod_fun)} -> #{inspect(result)}"
+    matches =
+      Module.get_attribute(env.module, :matches)
+      |> Enum.reverse()
+      |> Enum.map(fn %{patterns: patterns, module: module, function: function} ->
+        patterns =
+          Enum.map(patterns, fn {func_name, context, arguments} ->
+            {:&, [], [{:"match_#{func_name}", context, [{:&, [], [1]} | List.wrap(arguments)]}]}
           end)
 
-          result
+        {:{}, [], [patterns, module, function]}
+      end)
+
+    quote location: :keep do
+      defp process_mailbox(client, %{assigns: assigns}) do
+        emails = Mailroom.IMAP.email_count(client)
+
+        if emails > 0 do
+          Logger.debug("Processing #{emails} emails")
+
+          Mailroom.IMAP.each(client, [:envelope, :body_structure], fn {msg_id, response} ->
+            %{envelope: envelope, body_structure: body_structure} = response
+            mail_info = generate_mail_info(envelope, body_structure)
+
+            case perform_match(client, msg_id, mail_info, assigns) do
+              :done ->
+                Mailroom.IMAP.add_flags(client, msg_id, [:deleted])
+
+              :no_match ->
+                Mailroom.IMAP.add_flags(client, msg_id, [:seen])
+            end
+          end)
+
+          Mailroom.IMAP.expunge(client)
         end
 
-        defp log_email([]), do: "Unknown"
-        defp log_email([%{email: email} | _]), do: email
-
-        defp log_mod_fun(nil), do: ""
-        defp log_mod_fun({mod, fun}), do: "#{inspect(mod)}##{fun}"
+        Logger.debug("Entering IDLE")
+        idle(client)
       end
 
-    [main_func | match_functions]
+      def do_match(mail_info) do
+        match =
+          unquote(matches)
+          |> Enum.find(fn {patterns, _, _} ->
+            Enum.all?(patterns, & &1.(mail_info))
+          end)
+
+        case match do
+          nil ->
+            :no_match
+
+          {_, module, function} ->
+            {module, function}
+        end
+
+        # unquote(normalize)
+        # cond do: unquote(conditions)
+      end
+
+      def perform_match(client, msg_id, mail_info, assigns \\ %{}) do
+        {result, mod_fun} =
+          case do_match(mail_info) do
+            :no_match ->
+              {:no_match, nil}
+
+            {module, function} ->
+              context = %MessageContext{
+                id: msg_id,
+                mail_info: mail_info,
+                client: client,
+                assigns: assigns
+              }
+
+              # Logger.debug("  match: #{module || __MODULE__}##{function}")
+              mod = module || __MODULE__
+
+              {apply(mod, function, [context]), {mod, function}}
+          end
+
+        Logger.info(fn ->
+          %{to: to, from: from, subject: subject} = mail_info
+
+          "Processing msg:#{msg_id} TO:#{log_email(to)} FROM:#{log_email(from)} SUBJECT:#{
+            inspect(subject)
+          } using #{log_mod_fun(mod_fun)} -> #{inspect(result)}"
+        end)
+
+        result
+      end
+
+      defp log_email([]), do: "Unknown"
+      defp log_email([email | _]), do: email
+
+      defp log_mod_fun(nil), do: ""
+      defp log_mod_fun({mod, fun}), do: "#{inspect(mod)}##{fun}"
+    end
+
     # |> print_macro
-  end
-
-  defp get_match_keys(matches) do
-    matches
-    |> Enum.flat_map(fn %Match{patterns: patterns} ->
-      Enum.map(patterns, fn {field, _} -> field end)
-    end)
-    |> Enum.uniq()
-  end
-
-  defp build_match_functions(matches) do
-    matches
-    |> Enum.reverse()
-    |> Enum.with_index()
-    |> Enum.reduce([], fn {%Match{patterns: patterns}, index}, acc ->
-      patterns
-      |> merge_duplicate_patterns
-      |> Enum.to_list()
-      |> Enum.reverse()
-      |> Enum.reduce(acc, fn
-        {field, patterns}, acc when is_list(patterns) ->
-          match_functions =
-            patterns
-            |> Enum.reduce(acc, fn pattern, acc ->
-              [create_match_function(index, field, pattern) | acc]
-            end)
-            |> Enum.reverse()
-
-          [create_match_failure_function(index, field, hd(patterns)) | match_functions]
-
-        {field, pattern}, acc ->
-          [
-            create_match_failure_function(index, field, pattern),
-            create_match_function(index, field, pattern) | acc
-          ]
-      end)
-    end)
-    |> Enum.reverse()
-
-    # |> print_macro
-  end
-
-  defp build_condition_clauses(matches) do
-    conditions =
-      matches
-      |> Enum.reverse()
-      |> Enum.with_index()
-      |> Enum.flat_map(fn {%Match{patterns: patterns, module: module, function: function}, index} ->
-        keys = patterns |> Keyword.keys() |> Enum.uniq()
-        conditions = build_conditions(index, keys)
-        # |> print_macro
-        quote do: (unquote(conditions) -> {unquote(module), unquote(function)})
-      end)
-
-    fallback_condition = quote do: (true -> :no_match)
-    conditions ++ fallback_condition
-  end
-
-  defp build_conditions(index, fields, acc \\ [])
-  defp build_conditions(_index, [], [condition]), do: condition
-
-  defp build_conditions(_index, [], acc),
-    do: {{:., [], [{:__aliases__, [alias: false], [Enum]}, :all?]}, [], [Enum.reverse(acc)]}
-
-  ~w[to cc bcc from sender]a
-  |> Enum.each(fn field ->
-    defp build_conditions(index, [unquote(field) | fields], acc) do
-      accessor = {{:., [], [{:envelope, [], Elixir}, unquote(field)]}, [], []}
-
-      function =
-        {:&, [],
-         [
-           {:/, [context: Elixir, import: Kernel],
-            [{:"matches_#{index}_#{unquote(field)}", [], Elixir}, 1]}
-         ]}
-
-      condition = quote do: Enum.any?(List.wrap(unquote(accessor)), unquote(function))
-      build_conditions(index, fields, [condition | acc])
-    end
-  end)
-
-  defp build_conditions(index, [:has_attachment | fields], acc) do
-    function =
-      {{:., [], [{:__aliases__, [alias: false], [BodyStructure]}, :has_attachment?]}, [],
-       [{:body_structure, [], Elixir}]}
-
-    build_conditions(index, fields, [function | acc])
-  end
-
-  defp build_conditions(index, [field | fields], acc) do
-    accessor = {{:., [], [{:envelope, [], Elixir}, field]}, [], []}
-    function = {:"matches_#{index}_#{field}", [], [accessor]}
-    build_conditions(index, fields, [function | acc])
-  end
-
-  defp merge_duplicate_patterns(patterns) do
-    patterns
-    |> Enum.reduce(%{}, fn {key, value}, map ->
-      Map.update(map, key, value, &[value | List.wrap(&1)])
-    end)
-  end
-
-  defp create_match_function(index, field, {:sigil_r, _, _} = regex) do
-    quote do
-      defp unquote(:"matches_#{index}_#{field}")(nil), do: false
-
-      defp unquote(:"matches_#{index}_#{field}")(string) do
-        Regex.match?(unquote(regex), string)
-      end
-    end
-  end
-
-  defp create_match_function(index, field, string) when is_binary(string) do
-    quote do
-      defp unquote(:"matches_#{index}_#{field}")(<<unquote(string), _rest::binary>>), do: true
-      defp unquote(:"matches_#{index}_#{field}")(_), do: false
-    end
-  end
-
-  defp create_match_function(index, field, pattern) do
-    quote do
-      defp unquote(:"matches_#{index}_#{field}")(unquote(pattern)) do
-        true
-      end
-    end
-  end
-
-  defp create_match_failure_function(_index, _field, {:sigil_r, _, _}), do: nil
-  defp create_match_failure_function(_index, _field, string) when is_binary(string), do: nil
-
-  defp create_match_failure_function(index, field, _pattern) do
-    quote do
-      defp unquote(:"matches_#{index}_#{field}")(_), do: false
-    end
   end
 
   # defp print_macro(quoted) do
