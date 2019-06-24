@@ -82,6 +82,7 @@ defmodule Mailroom.IMAP.BodyStructure do
   defp parse_file_name([[_, [_ | _] = params] | _tail]), do: file_name_from_params(params)
   defp parse_file_name([_ | tail]), do: parse_file_name(tail)
 
+  defp file_name_from_params([]), do: nil
   defp file_name_from_params(["FILENAME", file_name | _tail]), do: file_name
   defp file_name_from_params(["filename", file_name | _tail]), do: file_name
   defp file_name_from_params([_, _ | tail]), do: file_name_from_params(tail)

@@ -686,7 +686,7 @@ defmodule Mailroom.IMAPTest do
         "A002 OK [READ-WRITE] INBOX selected. (Success)\r\n"
       ])
       |> TestServer.on("A003 FETCH 1:10 (BODYSTRUCTURE)\r\n", [
-        "* 1 FETCH (BODYSTRUCTURE ((\"TEXT\" \"PLAIN\" (\"CHARSET\" \"utf-8\") NIL NIL \"7BIT\" 438 9 NIL NIL NIL)(\"APPLICATION\" \"OCTET-STREAM\" (\"NAME\" \"Image.pdf\") NIL NIL \"BASE64\" 81800 NIL (\"ATTACHMENT\" (\"FILENAME\" \"Image.pdf\")) NIL) \"MIXED\" (\"BOUNDARY\" \"abcdfwefjsdvsdfg\") NIL NIL))\r\n",
+        "* 1 FETCH (BODYSTRUCTURE ((\"TEXT\" \"PLAIN\" (\"CHARSET\" \"utf-8\") NIL NIL \"7BIT\" 438 9 NIL NIL NIL)(\"APPLICATION\" \"OCTET-STREAM\" (\"NAME\" \"Image.pdf\") NIL NIL \"BASE64\" 81800 NIL (\"ATTACHMENT\" (\"CREATION-DATE\" \"Fri, 14 Jun 2019 07:17:52 GMT\")) NIL) \"MIXED\" (\"BOUNDARY\" \"abcdfwefjsdvsdfg\") NIL NIL))\r\n",
         "* 2 FETCH (BODYSTRUCTURE (\"TEXT\" \"PLAIN\" (\"CHARSET\" \"iso-8859-1\") NIL NIL \"QUOTED-PRINTABLE\" 1315 42 NIL NIL NIL NIL))\r\n",
         "* 3 FETCH (BODYSTRUCTURE ((\"TEXT\" \"PLAIN\" (\"CHARSET\" \"iso-8859-1\") NIL NIL \"QUOTED-PRINTABLE\" 2234 63 NIL NIL NIL NIL)(\"TEXT\" \"HTML\" (\"CHARSET\" \"iso-8859-1\") NIL NIL \"QUOTED-PRINTABLE\" 2987 52 NIL NIL NIL NIL) \"ALTERNATIVE\" (\"BOUNDARY\" \"d3438gr7324\") NIL NIL NIL))\r\n",
         "* 4 FETCH (BODYSTRUCTURE ((\"TEXT\" \"HTML\" (\"CHARSET\" \"US-ASCII\") NIL NIL \"7BIT\" 119 2 NIL (\"INLINE\" NIL) NIL)(\"IMAGE\" \"JPEG\" (\"NAME\" \"4356415.jpg\") \"<0__=rhksjt>\" NIL \"BASE64\" 143804 NIL (\"INLINE\" (\"FILENAME\" \"4356415.jpg\")) NIL) \"RELATED\" (\"BOUNDARY\" \"0__=5tgd3d\") (\"INLINE\" NIL) NIL))\r\n",
@@ -736,7 +736,7 @@ defmodule Mailroom.IMAPTest do
                       type: "application/octet-stream",
                       params: %{"name" => "Image.pdf"},
                       disposition: "attachment",
-                      file_name: "Image.pdf"
+                      file_name: nil
                     }
                   ]
                 }
