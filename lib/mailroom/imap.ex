@@ -127,8 +127,8 @@ defmodule Mailroom.IMAP do
       > IMAP.fetch(client, 1..3, [:fast, :uid])
       #…
   """
-  def fetch(pid, number_or_range, items_list, func \\ nil) do
-    {:ok, list} = GenServer.call(pid, {:fetch, number_or_range, items_list}, 60_000)
+  def fetch(pid, number_or_range, items_list, func \\ nil, opts \\ []) do
+    {:ok, list} = GenServer.call(pid, {:fetch, number_or_range, items_list}, Keyword.get(opts, :timeout, 300_000))
 
     if func do
       Enum.each(list, func)
