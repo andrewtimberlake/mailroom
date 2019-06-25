@@ -117,13 +117,15 @@ defmodule Mailroom.Inbox do
       case match_block do
         {:__block__, _, matches} -> matches
         {:process, _, _} = process -> [process]
+        {:ignore, _, _} = ignore -> [ignore]
         item -> [item]
       end
 
     {process, matches} =
       case Enum.reverse(matches) do
+        [{:ignore, _, _} = process | matches] -> {process, Enum.reverse(matches)}
         [{:process, _, _} = process | matches] -> {process, Enum.reverse(matches)}
-        _ -> raise("A match block must have a call to process")
+        _ -> raise("A match block must have a call to process/0 to ignore/0")
       end
 
     {commands, matches} =
@@ -139,6 +141,7 @@ defmodule Mailroom.Inbox do
       case process do
         {:process, _, [module, function]} -> {module, function}
         {:process, _, [function]} -> {nil, function}
+        {:ignore, _, _} -> {:ignore, nil}
       end
 
     quote do
@@ -186,6 +189,9 @@ defmodule Mailroom.Inbox do
                 :delete ->
                   Mailroom.IMAP.add_flags(client, msg_id, [:deleted])
 
+                :ignore ->
+                  Mailroom.IMAP.add_flags(client, msg_id, [:deleted])
+
                 :seen ->
                   Mailroom.IMAP.add_flags(client, msg_id, [:seen])
 
@@ -198,7 +204,9 @@ defmodule Mailroom.Inbox do
                 stack = System.stacktrace()
 
                 Logger.error(fn ->
-                  "Error processing #{mail_info} -> #{inspect(kind)}, #{inspect(reason)}, #{Exception.format_stacktrace(stack)}"
+                  "Error processing #{inspect(mail_info)} -> #{inspect(kind)}, #{inspect(reason)}, #{
+                    Exception.format_stacktrace(stack)
+                  }"
                 end)
 
                 Mailroom.IMAP.add_flags(client, msg_id, [:seen])
@@ -235,6 +243,9 @@ defmodule Mailroom.Inbox do
             :no_match ->
               {:no_match, nil}
 
+            {:ignore, _, _} ->
+              {:ignore, nil}
+
             {module, function, fetch_mail} ->
               {mail, message} = if fetch_mail, do: fetch_mail(client, msg_id), else: {nil, nil}
 
@@ -257,7 +268,7 @@ defmodule Mailroom.Inbox do
 
           "Processing msg:#{msg_id} TO:#{log_email(to)} FROM:#{log_email(from)} SUBJECT:#{
             inspect(subject)
-          } using #{log_mod_fun(mod_fun)} -> #{inspect(result)}"
+          }#{log_mod_fun(mod_fun)} -> #{inspect(result)}"
         end)
 
         result
@@ -274,7 +285,7 @@ defmodule Mailroom.Inbox do
       defp log_email([email | _]), do: email
 
       defp log_mod_fun(nil), do: ""
-      defp log_mod_fun({mod, fun}), do: "#{inspect(mod)}##{fun}"
+      defp log_mod_fun({mod, fun}), do: " using #{inspect(mod)}##{fun}"
     end
 
     # |> print_macro

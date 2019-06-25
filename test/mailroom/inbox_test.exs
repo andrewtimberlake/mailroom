@@ -46,6 +46,12 @@ defmodule Mailroom.InboxTest do
     end
 
     match do
+      to("ignore@example.com")
+
+      ignore
+    end
+
+    match do
       subject(~r/test \d+/i)
 
       process(TestMailProcessor, :match_subject_regex)
@@ -328,6 +334,72 @@ defmodule Mailroom.InboxTest do
 
     assert log =~
              "Processing msg:3 TO:george@example.com FROM:jane@example.com SUBJECT:\"Another one\" using Mailroom.InboxTest.TestMailProcessor#match_all -> :delete"
+  end
+
+  test "ignore an email" do
+    server = TestServer.start(ssl: true)
+
+    TestServer.expect(server, fn expectations ->
+      expectations
+      |> TestServer.tagged(:connect, "* OK IMAP ready\r\n")
+      |> TestServer.tagged("LOGIN \"test@example.com\" \"P@55w0rD\"\r\n", [
+        "* CAPABILITY (IMAPrev4)\r\n",
+        "OK test@example.com authenticated (Success)\r\n"
+      ])
+      |> TestServer.tagged("SELECT INBOX\r\n", [
+        "* FLAGS (\\Flagged \\Draft \\Deleted \\Seen)\r\n",
+        "* OK [PERMANENTFLAGS (\\Flagged \\Draft \\Deleted \\Seen \\*)] Flags permitted\r\n",
+        "* 1 EXISTS\r\n",
+        "* 1 RECENT\r\n",
+        "OK [READ-WRITE] INBOX selected. (Success)\r\n"
+      ])
+      |> TestServer.tagged("SEARCH UNSEEN\r\n", [
+        "* SEARCH 1\r\n",
+        "OK Success\r\n"
+      ])
+      |> TestServer.tagged("FETCH 1 (ENVELOPE BODYSTRUCTURE)\r\n", [
+        ~s[* 1 FETCH (ENVELOPE ("Mon, 10 Jun 2019 11:57:36 +0200" "Attached." (("Andrew Timberlake" NIL "andrew" "internuity.net")) (("Andrew Timberlake" NIL "andrew" "internuity.net")) (("Andrew Timberlake" NIL "andrew" "internuity.net")) ((NIL NIL "ignore" "example.com")) NIL NIL "<f69b912d-310b-4133-b526-07f715242db6@Spark>" "<4cff0831-67f5-4457-b60a-3331ba893348@Spark>") BODYSTRUCTURE ((("TEXT" "PLAIN" ("CHARSET" "utf-8") NIL NIL "7BIT" 8 1 NIL ("INLINE" NIL) NIL)(("TEXT" "HTML" ("CHARSET" "utf-8") NIL NIL "QUOTED-PRINTABLE" 293 6 NIL ("INLINE" NIL) NIL)("IMAGE" "PNG" NIL "<D0C5BB9CBFAE48E09727D1A67721F939>" NIL "BASE64" 3934 NIL ("INLINE" ("FILENAME" "3M-Logo.png")) NIL) "RELATED" ("BOUNDARY" "5cfe29a0_507ed7ab_d312") NIL NIL) "ALTERNATIVE" ("BOUNDARY" "5cfe29a0_2eb141f2_d312") NIL NIL)("APPLICATION" "OCTET-STREAM" NIL NIL NIL "BASE64" 2730568 NIL ("ATTACHMENT" ("FILENAME" "test.pdf")) NIL) "MIXED" ("BOUNDARY" "5cfe29a0_41b71efb_d312") NIL NIL))\r\n],
+        "OK Success\r\n"
+      ])
+      |> TestServer.tagged("STORE 1 +FLAGS (\\Deleted)\r\n", [
+        "* 1 FETCH (FLAGS (\\Deleted))\r\n",
+        "OK Store completed\r\n"
+      ])
+      |> TestServer.tagged("EXPUNGE\r\n", [
+        "* 1 EXPUNGE\r\n",
+        "OK Expunge completed\r\n"
+      ])
+      |> TestServer.tagged("IDLE\r\n", [
+        "+ idling\r\n"
+      ])
+      |> TestServer.tagged("DONE\r\n", [
+        "OK IDLE terminated\r\n"
+      ])
+      |> TestServer.tagged("LOGOUT\r\n", [
+        "* BYE We're out of here\r\n",
+        "OK Logged out\r\n"
+      ])
+    end)
+
+    log =
+      ExUnit.CaptureLog.capture_log(fn ->
+        {:ok, pid} =
+          TestMailRouter.start_link(
+            server: server.address,
+            port: server.port,
+            ssl: true,
+            assigns: %{test_pid: self()},
+            debug: @debug
+          )
+
+        # refute_received _
+        TestMailRouter.close(pid)
+      end)
+
+    assert log =~ "Processing 1 emails"
+
+    assert log =~
+             "Processing msg:1 TO:ignore@example.com FROM:andrew@internuity.net SUBJECT:\"Attached.\" -> :ignore"
   end
 
   test "Fetch email in handler" do
