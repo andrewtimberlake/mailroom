@@ -147,13 +147,49 @@ defmodule Mailroom.TestServer do
     expectations =
       func.([])
       |> Enum.reverse()
+      |> add_tags()
 
     cast(server.pid, {:start, expectations})
   end
 
-  def on(expectations, recv, send, options \\ []) do
-    [{recv, send, options} | expectations]
+  def on(expectations, cmd, resp, options \\ []) do
+    [{cmd, resp, options} | expectations]
   end
+
+  def tagged(expectations, cmd, resp, options \\ []) do
+    [{:tagged, cmd, resp, options} | expectations]
+  end
+
+  defp add_tags(list, cmd_number \\ 0)
+  defp add_tags([], _), do: []
+
+  defp add_tags([{:tagged, "IDLE\r\n" = cmd, resp, options} | tail], cmd_number) do
+    [{add_tag(cmd, cmd_number), add_tag(resp, cmd_number), options} | add_tags(tail, cmd_number)]
+  end
+
+  defp add_tags([{:tagged, cmd, resp, options} | tail], cmd_number) do
+    [
+      {add_tag(cmd, cmd_number), add_tag(resp, cmd_number), options}
+      | add_tags(tail, cmd_number + 1)
+    ]
+  end
+
+  defp add_tags([head | tail], cmd_number) do
+    [head | add_tags(tail, cmd_number + 1)]
+  end
+
+  defp add_tag([], _), do: []
+
+  defp add_tag([command | tail], cmd_number),
+    do: [add_tag(command, cmd_number) | add_tag(tail, cmd_number)]
+
+  defp add_tag(command, _) when is_atom(command), do: command
+  defp add_tag("DONE\r\n", _), do: "DONE\r\n"
+  defp add_tag(<<"*", _rest::binary>> = command, _), do: command
+  defp add_tag(<<"+", _rest::binary>> = command, _), do: command
+
+  defp add_tag(command, cmd_number),
+    do: "A#{String.pad_leading(to_string(cmd_number), 3, "0")} #{command}"
 
   defp get_socket(false),
     do: :gen_tcp.listen(0, @tcp_opts)

@@ -13,11 +13,11 @@ defmodule Mailroom.IMAPTest do
 
     TestServer.expect(server, fn expectations ->
       expectations
-      |> TestServer.on(:connect, "* OK [CAPABILITY IMAPrev4 STARTTLS]\r\n")
-      |> TestServer.on("A001 STARTTLS\r\n", ["A001 OK Begin TLS\r\n"], ssl: true)
-      |> TestServer.on("A002 LOGIN \"test@example.com\" \"P@55w0rD\"\r\n", [
+      |> TestServer.tagged(:connect, "* OK [CAPABILITY IMAPrev4 STARTTLS]\r\n")
+      |> TestServer.tagged("STARTTLS\r\n", ["OK Begin TLS\r\n"], ssl: true)
+      |> TestServer.tagged("LOGIN \"test@example.com\" \"P@55w0rD\"\r\n", [
         "* CAPABILITY (IMAPrev4)\r\n",
-        "A002 OK test@example.com authenticated (Success)\r\n"
+        "OK test@example.com authenticated (Success)\r\n"
       ])
     end)
 
@@ -36,11 +36,11 @@ defmodule Mailroom.IMAPTest do
 
     TestServer.expect(server, fn expectations ->
       expectations
-      |> TestServer.on(:connect, "* OK IMAP ready\r\n")
-      |> TestServer.on("A001 LOGIN \"test@example.com\" \"wrong\"\r\n", [
-        "A001 NO [AUTHENTICATIONFAILED] Authentication failed\r\n"
+      |> TestServer.tagged(:connect, "* OK IMAP ready\r\n")
+      |> TestServer.tagged("LOGIN \"test@example.com\" \"wrong\"\r\n", [
+        "NO [AUTHENTICATIONFAILED] Authentication failed\r\n"
       ])
-      |> TestServer.on("A002 LOGOUT\r\n", ["* BYE Logging off now\r\n", "A002 OK We're done\r\n"])
+      |> TestServer.tagged("LOGOUT\r\n", ["* BYE Logging off now\r\n", "OK We're done\r\n"])
     end)
 
     assert {:error, :authentication, "[AUTHENTICATIONFAILED] Authentication failed"} =
@@ -56,11 +56,11 @@ defmodule Mailroom.IMAPTest do
 
     TestServer.expect(server, fn expectations ->
       expectations
-      |> TestServer.on(:connect, "* OK IMAP ready\r\n")
-      |> TestServer.on("A001 LOGIN \"test@example.com\" \"p!@#$%^&*()\\\"\"\r\n", [
-        "A001 NO [AUTHENTICATIONFAILED] Authentication failed\r\n"
+      |> TestServer.tagged(:connect, "* OK IMAP ready\r\n")
+      |> TestServer.tagged("LOGIN \"test@example.com\" \"p!@#$%^&*()\\\"\"\r\n", [
+        "NO [AUTHENTICATIONFAILED] Authentication failed\r\n"
       ])
-      |> TestServer.on("A002 LOGOUT\r\n", ["* BYE Logging off now\r\n", "A002 OK We're done\r\n"])
+      |> TestServer.tagged("LOGOUT\r\n", ["* BYE Logging off now\r\n", "OK We're done\r\n"])
     end)
 
     assert {:error, :authentication, "[AUTHENTICATIONFAILED] Authentication failed"} =
@@ -76,10 +76,10 @@ defmodule Mailroom.IMAPTest do
 
     TestServer.expect(server, fn expectations ->
       expectations
-      |> TestServer.on(:connect, "* OK IMAP ready\r\n")
-      |> TestServer.on("A001 LOGIN \"test@example.com\" \"P@55w0rD\"\r\n", [
+      |> TestServer.tagged(:connect, "* OK IMAP ready\r\n")
+      |> TestServer.tagged("LOGIN \"test@example.com\" \"P@55w0rD\"\r\n", [
         "* CAPABILITY (IMAPrev4)\r\n",
-        "A001 OK test@example.com authenticated (Success)\r\n"
+        "OK test@example.com authenticated (Success)\r\n"
       ])
     end)
 
@@ -98,13 +98,13 @@ defmodule Mailroom.IMAPTest do
 
     TestServer.expect(server, fn expectations ->
       expectations
-      |> TestServer.on(:connect, "* OK IMAP ready\r\n")
-      |> TestServer.on("A001 LOGIN \"test@example.com\" \"P@55w0rD\"\r\n", [
-        "A001 OK test@example.com authenticated (Success)\r\n"
+      |> TestServer.tagged(:connect, "* OK IMAP ready\r\n")
+      |> TestServer.tagged("LOGIN \"test@example.com\" \"P@55w0rD\"\r\n", [
+        "OK test@example.com authenticated (Success)\r\n"
       ])
-      |> TestServer.on("A002 CAPABILITY\r\n", [
+      |> TestServer.tagged("CAPABILITY\r\n", [
         "* CAPABILITY IMAP4rev1 LITERAL+ ENABLE IDLE NAMESPACE UIDPLUS QUOTA\r\n",
-        "A002 OK CAPABILITY complete\r\n"
+        "OK CAPABILITY complete\r\n"
       ])
     end)
 
@@ -121,12 +121,12 @@ defmodule Mailroom.IMAPTest do
 
     TestServer.expect(server, fn expectations ->
       expectations
-      |> TestServer.on(:connect, "* OK IMAP ready\r\n")
-      |> TestServer.on("A001 LOGIN \"test@example.com\" \"P@55w0rD\"\r\n", [
+      |> TestServer.tagged(:connect, "* OK IMAP ready\r\n")
+      |> TestServer.tagged("LOGIN \"test@example.com\" \"P@55w0rD\"\r\n", [
         "* CAPABILITY (IMAPrev4)\r\n",
-        "A001 OK test@example.com authenticated (Success)\r\n"
+        "OK test@example.com authenticated (Success)\r\n"
       ])
-      |> TestServer.on("A002 SELECT INBOX\r\n", [
+      |> TestServer.tagged("SELECT INBOX\r\n", [
         "* FLAGS (\\Flagged \\Draft \\Deleted \\Seen)\r\n",
         "* OK [PERMANENTFLAGS (\\Flagged \\Draft \\Deleted \\Seen \\*)] Flags permitted\r\n",
         "* 4 EXISTS\r\n",
@@ -135,7 +135,7 @@ defmodule Mailroom.IMAPTest do
         "* OK [UIDVALIDITY 1474976037] UIDs valid\r\n",
         "* OK [UIDNEXT 5] Predicted next UID\r\n",
         "* OK [HIGHESTMODSEQ 2] Highest\r\n",
-        "A002 OK [READ-WRITE] INBOX selected. (Success)\r\n"
+        "OK [READ-WRITE] INBOX selected. (Success)\r\n"
       ])
     end)
 
@@ -162,19 +162,19 @@ defmodule Mailroom.IMAPTest do
 
     TestServer.expect(server, fn expectations ->
       expectations
-      |> TestServer.on(:connect, "* OK IMAP ready\r\n")
-      |> TestServer.on("A001 LOGIN \"test@example.com\" \"P@55w0rD\"\r\n", [
+      |> TestServer.tagged(:connect, "* OK IMAP ready\r\n")
+      |> TestServer.tagged("LOGIN \"test@example.com\" \"P@55w0rD\"\r\n", [
         "* CAPABILITY (IMAPrev4)\r\n",
-        "A001 OK test@example.com authenticated (Success)\r\n"
+        "OK test@example.com authenticated (Success)\r\n"
       ])
-      |> TestServer.on("A002 SELECT INBOX\r\n", [
+      |> TestServer.tagged("SELECT INBOX\r\n", [
         "* FLAGS (\\Flagged \\Draft \\Deleted \\Seen)\r\n",
         "* OK [PERMANENTFLAGS (\\Flagged \\Draft \\Deleted \\Seen \\*)] Flags permitted\r\n",
         "* 2 EXISTS\r\n",
         "* 1 RECENT\r\n",
-        "A002 OK [READ-WRITE] INBOX selected. (Success)\r\n"
+        "OK [READ-WRITE] INBOX selected. (Success)\r\n"
       ])
-      |> TestServer.on("A003 CLOSE\r\n", ["A003 OK Closed\r\n"])
+      |> TestServer.tagged("CLOSE\r\n", ["OK Closed\r\n"])
     end)
 
     assert {:ok, client} =
@@ -197,12 +197,12 @@ defmodule Mailroom.IMAPTest do
 
     TestServer.expect(server, fn expectations ->
       expectations
-      |> TestServer.on(:connect, "* OK IMAP ready\r\n")
-      |> TestServer.on("A001 LOGIN \"test@example.com\" \"P@55w0rD\"\r\n", [
+      |> TestServer.tagged(:connect, "* OK IMAP ready\r\n")
+      |> TestServer.tagged("LOGIN \"test@example.com\" \"P@55w0rD\"\r\n", [
         "* CAPABILITY (IMAPrev4)\r\n",
-        "A001 OK test@example.com authenticated (Success)\r\n"
+        "OK test@example.com authenticated (Success)\r\n"
       ])
-      |> TestServer.on("A002 EXAMINE INBOX\r\n", [
+      |> TestServer.tagged("EXAMINE INBOX\r\n", [
         "* FLAGS (\\Flagged \\Draft \\Deleted \\Seen)\r\n",
         "* OK [PERMANENTFLAGS ()] Read-only mailbox\r\n",
         "* 4 EXISTS\r\n",
@@ -211,7 +211,7 @@ defmodule Mailroom.IMAPTest do
         "* OK [UIDVALIDITY 1474976037] UIDs valid\r\n",
         "* OK [UIDNEXT 5] Predicted next UID\r\n",
         "* OK [HIGHESTMODSEQ 2] Highest\r\n",
-        "A002 OK [READ-ONLY] examining INBOX. (Success)\r\n"
+        "OK [READ-ONLY] examining INBOX. (Success)\r\n"
       ])
     end)
 
@@ -238,19 +238,19 @@ defmodule Mailroom.IMAPTest do
 
     TestServer.expect(server, fn expectations ->
       expectations
-      |> TestServer.on(:connect, "* OK IMAP ready\r\n")
-      |> TestServer.on("A001 LOGIN \"test@example.com\" \"P@55w0rD\"\r\n", [
+      |> TestServer.tagged(:connect, "* OK IMAP ready\r\n")
+      |> TestServer.tagged("LOGIN \"test@example.com\" \"P@55w0rD\"\r\n", [
         "* CAPABILITY (IMAPrev4)\r\n",
-        "A001 OK test@example.com authenticated (Success)\r\n"
+        "OK test@example.com authenticated (Success)\r\n"
       ])
-      |> TestServer.on("A002 LIST \"\" \"*\"\r\n", [
+      |> TestServer.tagged("LIST \"\" \"*\"\r\n", [
         "* LIST (\\HasChildren) \".\" INBOX\r\n",
         "* LIST (\\HasNoChildren \\Trash) \".\" INBOX.Trash\r\n",
         "* LIST (\\HasNoChildren \\Drafts) \".\" INBOX.Drafts\r\n",
         "* LIST (\\HasNoChildren \\Sent) \".\" INBOX.Sent\r\n",
         "* LIST (\\HasNoChildren \\Junk) \".\" INBOX.Junk\r\n",
         "* LIST (\\HasNoChildren \\Archive) \".\" \"INBOX.Archive\"\r\n",
-        "A002 OK LIST complete\r\n"
+        "OK LIST complete\r\n"
       ])
     end)
 
@@ -278,14 +278,14 @@ defmodule Mailroom.IMAPTest do
 
     TestServer.expect(server, fn expectations ->
       expectations
-      |> TestServer.on(:connect, "* OK IMAP ready\r\n")
-      |> TestServer.on("A001 LOGIN \"test@example.com\" \"P@55w0rD\"\r\n", [
+      |> TestServer.tagged(:connect, "* OK IMAP ready\r\n")
+      |> TestServer.tagged("LOGIN \"test@example.com\" \"P@55w0rD\"\r\n", [
         "* CAPABILITY (IMAPrev4)\r\n",
-        "A001 OK test@example.com authenticated (Success)\r\n"
+        "OK test@example.com authenticated (Success)\r\n"
       ])
-      |> TestServer.on("A002 STATUS \"INBOX.Sent\" (MESSAGES RECENT UNSEEN)\r\n", [
+      |> TestServer.tagged("STATUS \"INBOX.Sent\" (MESSAGES RECENT UNSEEN)\r\n", [
         "* STATUS \"INBOX.Sent\" (MESSAGES 4 RECENT 2 UNSEEN 3)\r\n",
-        "A002 OK STATUS complete\r\n"
+        "OK STATUS complete\r\n"
       ])
     end)
 
@@ -305,22 +305,22 @@ defmodule Mailroom.IMAPTest do
 
     TestServer.expect(server, fn expectations ->
       expectations
-      |> TestServer.on(:connect, "* OK IMAP ready\r\n")
-      |> TestServer.on("A001 LOGIN \"test@example.com\" \"P@55w0rD\"\r\n", [
+      |> TestServer.tagged(:connect, "* OK IMAP ready\r\n")
+      |> TestServer.tagged("LOGIN \"test@example.com\" \"P@55w0rD\"\r\n", [
         "* CAPABILITY (IMAPrev4)\r\n",
-        "A001 OK test@example.com authenticated (Success)\r\n"
+        "OK test@example.com authenticated (Success)\r\n"
       ])
-      |> TestServer.on("A002 SELECT INBOX\r\n", [
+      |> TestServer.tagged("SELECT INBOX\r\n", [
         "* FLAGS (\\Flagged \\Draft \\Deleted \\Seen)\r\n",
         "* OK [PERMANENTFLAGS (\\Flagged \\Draft \\Deleted \\Seen \\*)] Flags permitted\r\n",
         "* 2 EXISTS\r\n",
         "* 1 RECENT\r\n",
-        "A002 OK [READ-WRITE] INBOX selected. (Success)\r\n"
+        "OK [READ-WRITE] INBOX selected. (Success)\r\n"
       ])
-      |> TestServer.on("A003 FETCH 1 (UID)\r\n", ["* 1 FETCH (UID 46)\r\n", "A003 OK Success\r\n"])
-      |> TestServer.on("A004 LOGOUT\r\n", [
+      |> TestServer.tagged("FETCH 1 (UID)\r\n", ["* 1 FETCH (UID 46)\r\n", "OK Success\r\n"])
+      |> TestServer.tagged("LOGOUT\r\n", [
         "* BYE We're out of here\r\n",
-        "A004 OK Logged out\r\n"
+        "OK Logged out\r\n"
       ])
     end)
 
@@ -345,22 +345,22 @@ defmodule Mailroom.IMAPTest do
 
     TestServer.expect(server, fn expectations ->
       expectations
-      |> TestServer.on(:connect, "* OK IMAP ready\r\n")
-      |> TestServer.on("A001 LOGIN \"test@example.com\" \"P@55w0rD\"\r\n", [
+      |> TestServer.tagged(:connect, "* OK IMAP ready\r\n")
+      |> TestServer.tagged("LOGIN \"test@example.com\" \"P@55w0rD\"\r\n", [
         "* CAPABILITY (IMAPrev4)\r\n",
-        "A001 OK test@example.com authenticated (Success)\r\n"
+        "OK test@example.com authenticated (Success)\r\n"
       ])
-      |> TestServer.on("A002 SELECT INBOX\r\n", [
+      |> TestServer.tagged("SELECT INBOX\r\n", [
         "* FLAGS (\\Flagged \\Draft \\Deleted \\Seen)\r\n",
         "* OK [PERMANENTFLAGS (\\Flagged \\Draft \\Deleted \\Seen \\*)] Flags permitted\r\n",
         "* 2 EXISTS\r\n",
         "* 1 RECENT\r\n",
-        "A002 OK [READ-WRITE] INBOX selected. (Success)\r\n"
+        "OK [READ-WRITE] INBOX selected. (Success)\r\n"
       ])
-      |> TestServer.on("A003 SEARCH UNSEEN\r\n", ["* SEARCH 1 2 4 6 7\r\n", "A003 OK Success\r\n"])
-      |> TestServer.on("A004 LOGOUT\r\n", [
+      |> TestServer.tagged("SEARCH UNSEEN\r\n", ["* SEARCH 1 2 4 6 7\r\n", "OK Success\r\n"])
+      |> TestServer.tagged("LOGOUT\r\n", [
         "* BYE We're out of here\r\n",
-        "A004 OK Logged out\r\n"
+        "OK Logged out\r\n"
       ])
     end)
 
@@ -385,33 +385,33 @@ defmodule Mailroom.IMAPTest do
 
     TestServer.expect(server, fn expectations ->
       expectations
-      |> TestServer.on(:connect, "* OK IMAP ready\r\n")
-      |> TestServer.on("A001 LOGIN \"test@example.com\" \"P@55w0rD\"\r\n", [
+      |> TestServer.tagged(:connect, "* OK IMAP ready\r\n")
+      |> TestServer.tagged("LOGIN \"test@example.com\" \"P@55w0rD\"\r\n", [
         "* CAPABILITY (IMAPrev4)\r\n",
-        "A001 OK test@example.com authenticated (Success)\r\n"
+        "OK test@example.com authenticated (Success)\r\n"
       ])
-      |> TestServer.on("A002 SELECT INBOX\r\n", [
+      |> TestServer.tagged("SELECT INBOX\r\n", [
         "* FLAGS (\\Flagged \\Draft \\Deleted \\Seen)\r\n",
         "* OK [PERMANENTFLAGS (\\Flagged \\Draft \\Deleted \\Seen \\*)] Flags permitted\r\n",
         "* 2 EXISTS\r\n",
         "* 1 RECENT\r\n",
-        "A002 OK [READ-WRITE] INBOX selected. (Success)\r\n"
+        "OK [READ-WRITE] INBOX selected. (Success)\r\n"
       ])
-      |> TestServer.on("A003 SEARCH UNSEEN\r\n", ["* SEARCH 1 2 4 6 7\r\n", "A003 OK Success\r\n"])
-      |> TestServer.on("A004 FETCH 1:2 (UID)\r\n", [
+      |> TestServer.tagged("SEARCH UNSEEN\r\n", ["* SEARCH 1 2 4 6 7\r\n", "OK Success\r\n"])
+      |> TestServer.tagged("FETCH 1:2 (UID)\r\n", [
         "* 1 FETCH (UID 46)\r\n",
         "* 2 FETCH (UID 47)\r\n",
-        "A004 OK Success\r\n"
+        "OK Success\r\n"
       ])
-      |> TestServer.on("A005 FETCH 4 (UID)\r\n", ["* 4 FETCH (UID 49)\r\n", "A005 OK Success\r\n"])
-      |> TestServer.on("A006 FETCH 6:7 (UID)\r\n", [
+      |> TestServer.tagged("FETCH 4 (UID)\r\n", ["* 4 FETCH (UID 49)\r\n", "OK Success\r\n"])
+      |> TestServer.tagged("FETCH 6:7 (UID)\r\n", [
         "* 6 FETCH (UID 51)\r\n",
         "* 7 FETCH (UID 52)\r\n",
-        "A006 OK Success\r\n"
+        "OK Success\r\n"
       ])
-      |> TestServer.on("A007 LOGOUT\r\n", [
+      |> TestServer.tagged("LOGOUT\r\n", [
         "* BYE We're out of here\r\n",
-        "A007 OK Logged out\r\n"
+        "OK Logged out\r\n"
       ])
     end)
 
@@ -441,25 +441,25 @@ defmodule Mailroom.IMAPTest do
 
     TestServer.expect(server, fn expectations ->
       expectations
-      |> TestServer.on(:connect, "* OK IMAP ready\r\n")
-      |> TestServer.on("A001 LOGIN \"test@example.com\" \"P@55w0rD\"\r\n", [
+      |> TestServer.tagged(:connect, "* OK IMAP ready\r\n")
+      |> TestServer.tagged("LOGIN \"test@example.com\" \"P@55w0rD\"\r\n", [
         "* CAPABILITY (IMAPrev4)\r\n",
-        "A001 OK test@example.com authenticated (Success)\r\n"
+        "OK test@example.com authenticated (Success)\r\n"
       ])
-      |> TestServer.on("A002 SELECT INBOX\r\n", [
+      |> TestServer.tagged("SELECT INBOX\r\n", [
         "* FLAGS (\\Flagged \\Draft \\Deleted \\Seen)\r\n",
         "* OK [PERMANENTFLAGS (\\Flagged \\Draft \\Deleted \\Seen \\*)] Flags permitted\r\n",
         "* 2 EXISTS\r\n",
         "* 1 RECENT\r\n",
-        "A002 OK [READ-WRITE] INBOX selected. (Success)\r\n"
+        "OK [READ-WRITE] INBOX selected. (Success)\r\n"
       ])
-      |> TestServer.on("A003 FETCH 1 (UID FLAGS RFC822.SIZE)\r\n", [
+      |> TestServer.tagged("FETCH 1 (UID FLAGS RFC822.SIZE)\r\n", [
         "* 1 FETCH (RFC822.SIZE 3325 INTERNALDATE \"26-Oct-2016 12:23:20 +0000\" FLAGS (\Seen))\r\n",
-        "A003 OK Success\r\n"
+        "OK Success\r\n"
       ])
-      |> TestServer.on("A004 LOGOUT\r\n", [
+      |> TestServer.tagged("LOGOUT\r\n", [
         "* BYE We're out of here\r\n",
-        "A004 OK Logged out\r\n"
+        "OK Logged out\r\n"
       ])
     end)
 
@@ -494,26 +494,26 @@ defmodule Mailroom.IMAPTest do
 
     TestServer.expect(server, fn expectations ->
       expectations
-      |> TestServer.on(:connect, "* OK IMAP ready\r\n")
-      |> TestServer.on("A001 LOGIN \"test@example.com\" \"P@55w0rD\"\r\n", [
+      |> TestServer.tagged(:connect, "* OK IMAP ready\r\n")
+      |> TestServer.tagged("LOGIN \"test@example.com\" \"P@55w0rD\"\r\n", [
         "* CAPABILITY (IMAPrev4)\r\n",
-        "A001 OK test@example.com authenticated (Success)\r\n"
+        "OK test@example.com authenticated (Success)\r\n"
       ])
-      |> TestServer.on("A002 SELECT INBOX\r\n", [
+      |> TestServer.tagged("SELECT INBOX\r\n", [
         "* FLAGS (\\Flagged \\Draft \\Deleted \\Seen)\r\n",
         "* OK [PERMANENTFLAGS (\\Flagged \\Draft \\Deleted \\Seen \\*)] Flags permitted\r\n",
         "* 2 EXISTS\r\n",
         "* 1 RECENT\r\n",
-        "A002 OK [READ-WRITE] INBOX selected. (Success)\r\n"
+        "OK [READ-WRITE] INBOX selected. (Success)\r\n"
       ])
-      |> TestServer.on("A003 FETCH 1:2 (UID)\r\n", [
+      |> TestServer.tagged("FETCH 1:2 (UID)\r\n", [
         "* 1 FETCH (UID 46)\r\n",
         "* 2 FETCH (UID 47)\r\n",
-        "A003 OK Success\r\n"
+        "OK Success\r\n"
       ])
-      |> TestServer.on("A004 LOGOUT\r\n", [
+      |> TestServer.tagged("LOGOUT\r\n", [
         "* BYE We're out of here\r\n",
-        "A004 OK Logged out\r\n"
+        "OK Logged out\r\n"
       ])
     end)
 
@@ -540,26 +540,26 @@ defmodule Mailroom.IMAPTest do
 
     TestServer.expect(server, fn expectations ->
       expectations
-      |> TestServer.on(:connect, "* OK IMAP ready\r\n")
-      |> TestServer.on("A001 LOGIN \"test@example.com\" \"P@55w0rD\"\r\n", [
+      |> TestServer.tagged(:connect, "* OK IMAP ready\r\n")
+      |> TestServer.tagged("LOGIN \"test@example.com\" \"P@55w0rD\"\r\n", [
         "* CAPABILITY (IMAPrev4)\r\n",
-        "A001 OK test@example.com authenticated (Success)\r\n"
+        "OK test@example.com authenticated (Success)\r\n"
       ])
-      |> TestServer.on("A002 SELECT INBOX\r\n", [
+      |> TestServer.tagged("SELECT INBOX\r\n", [
         "* FLAGS (\\Flagged \\Draft \\Deleted \\Seen)\r\n",
         "* OK [PERMANENTFLAGS (\\Flagged \\Draft \\Deleted \\Seen \\*)] Flags permitted\r\n",
         "* 2 EXISTS\r\n",
         "* 1 RECENT\r\n",
-        "A002 OK [READ-WRITE] INBOX selected. (Success)\r\n"
+        "OK [READ-WRITE] INBOX selected. (Success)\r\n"
       ])
-      |> TestServer.on("A003 FETCH 1:2 (ENVELOPE)\r\n", [
+      |> TestServer.tagged("FETCH 1:2 (ENVELOPE)\r\n", [
         "* 1 FETCH (ENVELOPE (\"Wed, 26 Oct 2016 14:23:14 +0200\" \"Test 1\" ((\"John Doe\" NIL \"john\" \"example.com\")) ((\"John Doe\" NIL \"john\" \"example.com\")) ((\"John Doe\" NIL \"john\" \"example.com\")) ((NIL NIL \"dev\" \"debtflow.co.za\")) NIL NIL NIL \"<B042B704-E13E-44A2-8FEC-67A43B6DD6DB@example.com>\"))\r\n",
         "* 2 FETCH (ENVELOPE (\"Wed, 26 Oct 2016 14:24:15 +0200\" \"Test 2\" ((\"Jane Doe\" NIL \"jane\" \"example.com\")) ((\"Jane Doe\" NIL \"jane\" \"example.com\")) ((\"Jane Doe\" NIL \"jane\" \"example.com\")) ((NIL NIL \"dev\" \"debtflow.co.za\")) NIL NIL \"652E7B61-60F6-421C-B954-4178BB769B27.example.com\" \"<28D03E0E-47EE-4AEF-BDE6-54ADB0EF28FD.example.com>\"))\r\n",
-        "A003 OK Success\r\n"
+        "OK Success\r\n"
       ])
-      |> TestServer.on("A004 LOGOUT\r\n", [
+      |> TestServer.tagged("LOGOUT\r\n", [
         "* BYE We're out of here\r\n",
-        "A004 OK Logged out\r\n"
+        "OK Logged out\r\n"
       ])
     end)
 
@@ -673,19 +673,19 @@ defmodule Mailroom.IMAPTest do
 
     TestServer.expect(server, fn expectations ->
       expectations
-      |> TestServer.on(:connect, "* OK IMAP ready\r\n")
-      |> TestServer.on("A001 LOGIN \"test@example.com\" \"P@55w0rD\"\r\n", [
+      |> TestServer.tagged(:connect, "* OK IMAP ready\r\n")
+      |> TestServer.tagged("LOGIN \"test@example.com\" \"P@55w0rD\"\r\n", [
         "* CAPABILITY (IMAPrev4)\r\n",
-        "A001 OK test@example.com authenticated (Success)\r\n"
+        "OK test@example.com authenticated (Success)\r\n"
       ])
-      |> TestServer.on("A002 SELECT INBOX\r\n", [
+      |> TestServer.tagged("SELECT INBOX\r\n", [
         "* FLAGS (\\Flagged \\Draft \\Deleted \\Seen)\r\n",
         "* OK [PERMANENTFLAGS (\\Flagged \\Draft \\Deleted \\Seen \\*)] Flags permitted\r\n",
         "* 2 EXISTS\r\n",
         "* 1 RECENT\r\n",
-        "A002 OK [READ-WRITE] INBOX selected. (Success)\r\n"
+        "OK [READ-WRITE] INBOX selected. (Success)\r\n"
       ])
-      |> TestServer.on("A003 FETCH 1:10 (BODYSTRUCTURE)\r\n", [
+      |> TestServer.tagged("FETCH 1:10 (BODYSTRUCTURE)\r\n", [
         "* 1 FETCH (BODYSTRUCTURE ((\"TEXT\" \"PLAIN\" (\"CHARSET\" \"utf-8\") NIL NIL \"7BIT\" 438 9 NIL NIL NIL)(\"APPLICATION\" \"OCTET-STREAM\" (\"NAME\" \"Image.pdf\") NIL NIL \"BASE64\" 81800 NIL (\"ATTACHMENT\" (\"CREATION-DATE\" \"Fri, 14 Jun 2019 07:17:52 GMT\")) NIL) \"MIXED\" (\"BOUNDARY\" \"abcdfwefjsdvsdfg\") NIL NIL))\r\n",
         "* 2 FETCH (BODYSTRUCTURE (\"TEXT\" \"PLAIN\" (\"CHARSET\" \"iso-8859-1\") NIL NIL \"QUOTED-PRINTABLE\" 1315 42 NIL NIL NIL NIL))\r\n",
         "* 3 FETCH (BODYSTRUCTURE ((\"TEXT\" \"PLAIN\" (\"CHARSET\" \"iso-8859-1\") NIL NIL \"QUOTED-PRINTABLE\" 2234 63 NIL NIL NIL NIL)(\"TEXT\" \"HTML\" (\"CHARSET\" \"iso-8859-1\") NIL NIL \"QUOTED-PRINTABLE\" 2987 52 NIL NIL NIL NIL) \"ALTERNATIVE\" (\"BOUNDARY\" \"d3438gr7324\") NIL NIL NIL))\r\n",
@@ -696,11 +696,11 @@ defmodule Mailroom.IMAPTest do
         "* 8 FETCH (BODYSTRUCTURE (((\"TEXT\" \"PLAIN\" (\"CHARSET\" \"UTF-8\") NIL NIL \"QUOTED-PRINTABLE\" 403 6 NIL NIL NIL NIL)(\"TEXT\" \"HTML\" (\"CHARSET\" \"UTF-8\") NIL NIL \"QUOTED-PRINTABLE\" 421 6 NIL NIL NIL NIL) \"ALTERNATIVE\" (\"BOUNDARY\" \"----=fghgf3\") NIL NIL NIL)(\"APPLICATION\" \"MSWORD\" (\"NAME\" \"letter.doc\") NIL NIL \"BASE64\" 110000 NIL (\"attachment\" (\"FILENAME\" \"letter.doc\" \"SIZE\" \"80384\")) NIL NIL) \"MIXED\" (\"BOUNDARY\" \"----=y34fgl\") NIL NIL NIL))\r\n",
         "* 9 FETCH (BODYSTRUCTURE ((((\"TEXT\" \"PLAIN\" (\"CHARSET\" \"ISO-8859-1\") NIL NIL \"QUOTED-PRINTABLE\" 833 30 NIL NIL NIL)(\"TEXT\" \"HTML\" (\"CHARSET\" \"ISO-8859-1\") NIL NIL \"QUOTED-PRINTABLE\" 3412 62 NIL (\"INLINE\" NIL) NIL) \"ALTERNATIVE\" (\"BOUNDARY\" \"2__=fgrths\") NIL NIL)(\"IMAGE\" \"GIF\" (\"NAME\" \"485039.gif\") \"<2__=lgkfjr>\" NIL \"BASE64\" 64 NIL (\"INLINE\" (\"FILENAME\" \"485039.gif\")) NIL) \"RELATED\" (\"BOUNDARY\" \"1__=fgrths\") NIL NIL)(\"APPLICATION\" \"PDF\" (\"NAME\" \"title.pdf\") \"<1__=lgkfjr>\" NIL \"BASE64\" 333980 NIL (\"ATTACHMENT\" (\"FILENAME\" \"title.pdf\")) NIL) \"MIXED\" (\"BOUNDARY\" \"0__=fgrths\") NIL NIL))\r\n",
         "* 10 FETCH (BODYSTRUCTURE ((\"TEXT\" \"HTML\" NIL NIL NIL \"7BIT\" 151 0 NIL NIL NIL) \"MIXED\" (\"BOUNDARY\" \"----=rfsewr\") NIL NIL))\r\n",
-        "A003 OK Success\r\n"
+        "OK Success\r\n"
       ])
-      |> TestServer.on("A004 LOGOUT\r\n", [
+      |> TestServer.tagged("LOGOUT\r\n", [
         "* BYE We're out of here\r\n",
-        "A004 OK Logged out\r\n"
+        "OK Logged out\r\n"
       ])
     end)
 
@@ -1028,25 +1028,25 @@ defmodule Mailroom.IMAPTest do
 
     TestServer.expect(server, fn expectations ->
       expectations
-      |> TestServer.on(:connect, "* OK IMAP ready\r\n")
-      |> TestServer.on("A001 LOGIN \"test@example.com\" \"P@55w0rD\"\r\n", [
+      |> TestServer.tagged(:connect, "* OK IMAP ready\r\n")
+      |> TestServer.tagged("LOGIN \"test@example.com\" \"P@55w0rD\"\r\n", [
         "* CAPABILITY (IMAPrev4)\r\n",
-        "A001 OK test@example.com authenticated (Success)\r\n"
+        "OK test@example.com authenticated (Success)\r\n"
       ])
-      |> TestServer.on("A002 SELECT INBOX\r\n", [
+      |> TestServer.tagged("SELECT INBOX\r\n", [
         "* FLAGS (\\Flagged \\Draft \\Deleted \\Seen)\r\n",
         "* OK [PERMANENTFLAGS (\\Flagged \\Draft \\Deleted \\Seen \\*)] Flags permitted\r\n",
         "* 2 EXISTS\r\n",
         "* 1 RECENT\r\n",
-        "A002 OK [READ-WRITE] INBOX selected. (Success)\r\n"
+        "OK [READ-WRITE] INBOX selected. (Success)\r\n"
       ])
-      |> TestServer.on("A003 FETCH 1 (BODY[TEXT])\r\n", [
+      |> TestServer.tagged("FETCH 1 (BODY[TEXT])\r\n", [
         "* 1 FETCH (BODY[TEXT] {8}\r\nTest 1\r\n)\r\n",
-        "A003 OK Success\r\n"
+        "OK Success\r\n"
       ])
-      |> TestServer.on("A004 LOGOUT\r\n", [
+      |> TestServer.tagged("LOGOUT\r\n", [
         "* BYE We're out of here\r\n",
-        "A004 OK Logged out\r\n"
+        "OK Logged out\r\n"
       ])
     end)
 
@@ -1071,30 +1071,30 @@ defmodule Mailroom.IMAPTest do
 
     TestServer.expect(server, fn expectations ->
       expectations
-      |> TestServer.on(:connect, "* OK IMAP ready\r\n")
-      |> TestServer.on("A001 LOGIN \"test@example.com\" \"P@55w0rD\"\r\n", [
+      |> TestServer.tagged(:connect, "* OK IMAP ready\r\n")
+      |> TestServer.tagged("LOGIN \"test@example.com\" \"P@55w0rD\"\r\n", [
         "* CAPABILITY (IMAPrev4)\r\n",
-        "A001 OK test@example.com authenticated (Success)\r\n"
+        "OK test@example.com authenticated (Success)\r\n"
       ])
-      |> TestServer.on("A002 SELECT INBOX\r\n", [
+      |> TestServer.tagged("SELECT INBOX\r\n", [
         "* FLAGS (\\Flagged \\Draft \\Deleted \\Seen)\r\n",
         "* OK [PERMANENTFLAGS (\\Flagged \\Draft \\Deleted \\Seen \\*)] Flags permitted\r\n",
         "* 2 EXISTS\r\n",
         "* 1 RECENT\r\n",
-        "A002 OK [READ-WRITE] INBOX selected. (Success)\r\n"
+        "OK [READ-WRITE] INBOX selected. (Success)\r\n"
       ])
-      |> TestServer.on("A003 STORE 1 -FLAGS (\\Seen)\r\n", [
+      |> TestServer.tagged("STORE 1 -FLAGS (\\Seen)\r\n", [
         "* 1 FETCH (FLAGS ())\r\n",
-        "A003 OK Success\r\n"
+        "OK Success\r\n"
       ])
-      |> TestServer.on("A004 STORE 1 +FLAGS (\\Answered)\r\n", [
+      |> TestServer.tagged("STORE 1 +FLAGS (\\Answered)\r\n", [
         "* 1 FETCH (FLAGS (\\Answered))\r\n",
-        "A004 OK Success\r\n"
+        "OK Success\r\n"
       ])
-      |> TestServer.on("A005 STORE 1:2 FLAGS.SILENT (\\Deleted)\r\n", ["A005 OK Success\r\n"])
-      |> TestServer.on("A006 LOGOUT\r\n", [
+      |> TestServer.tagged("STORE 1:2 FLAGS.SILENT (\\Deleted)\r\n", ["OK Success\r\n"])
+      |> TestServer.tagged("LOGOUT\r\n", [
         "* BYE We're out of here\r\n",
-        "A006 OK Logged out\r\n"
+        "OK Logged out\r\n"
       ])
     end)
 
@@ -1119,26 +1119,26 @@ defmodule Mailroom.IMAPTest do
 
     TestServer.expect(server, fn expectations ->
       expectations
-      |> TestServer.on(:connect, "* OK IMAP ready\r\n")
-      |> TestServer.on("A001 LOGIN \"test@example.com\" \"P@55w0rD\"\r\n", [
+      |> TestServer.tagged(:connect, "* OK IMAP ready\r\n")
+      |> TestServer.tagged("LOGIN \"test@example.com\" \"P@55w0rD\"\r\n", [
         "* CAPABILITY (IMAPrev4)\r\n",
-        "A001 OK test@example.com authenticated (Success)\r\n"
+        "OK test@example.com authenticated (Success)\r\n"
       ])
-      |> TestServer.on("A002 SELECT INBOX\r\n", [
+      |> TestServer.tagged("SELECT INBOX\r\n", [
         "* FLAGS (\\Flagged \\Draft \\Deleted \\Seen)\r\n",
         "* OK [PERMANENTFLAGS (\\Flagged \\Draft \\Deleted \\Seen \\*)] Flags permitted\r\n",
         "* 2 EXISTS\r\n",
         "* 1 RECENT\r\n",
-        "A002 OK [READ-WRITE] INBOX selected. (Success)\r\n"
+        "OK [READ-WRITE] INBOX selected. (Success)\r\n"
       ])
-      |> TestServer.on("A003 COPY 1:2 \"Archive\"\r\n", [
+      |> TestServer.tagged("COPY 1:2 \"Archive\"\r\n", [
         "* 1 FETCH (FLAGS (\\Seen))\r\n",
         "* 2 FETCH (FLAGS (\\Seen))\r\n",
-        "A003 OK Copy completed\r\n"
+        "OK Copy completed\r\n"
       ])
-      |> TestServer.on("A004 LOGOUT\r\n", [
+      |> TestServer.tagged("LOGOUT\r\n", [
         "* BYE We're out of here\r\n",
-        "A004 OK Logged out\r\n"
+        "OK Logged out\r\n"
       ])
     end)
 
@@ -1161,31 +1161,31 @@ defmodule Mailroom.IMAPTest do
 
     TestServer.expect(server, fn expectations ->
       expectations
-      |> TestServer.on(:connect, "* OK IMAP ready\r\n")
-      |> TestServer.on("A001 LOGIN \"test@example.com\" \"P@55w0rD\"\r\n", [
+      |> TestServer.tagged(:connect, "* OK IMAP ready\r\n")
+      |> TestServer.tagged("LOGIN \"test@example.com\" \"P@55w0rD\"\r\n", [
         "* CAPABILITY (IMAPrev4)\r\n",
-        "A001 OK test@example.com authenticated (Success)\r\n"
+        "OK test@example.com authenticated (Success)\r\n"
       ])
-      |> TestServer.on("A002 SELECT INBOX\r\n", [
+      |> TestServer.tagged("SELECT INBOX\r\n", [
         "* FLAGS (\\Flagged \\Draft \\Deleted \\Seen)\r\n",
         "* OK [PERMANENTFLAGS (\\Flagged \\Draft \\Deleted \\Seen \\*)] Flags permitted\r\n",
         "* 2 EXISTS\r\n",
         "* 1 RECENT\r\n",
-        "A002 OK [READ-WRITE] INBOX selected. (Success)\r\n"
+        "OK [READ-WRITE] INBOX selected. (Success)\r\n"
       ])
-      |> TestServer.on("A003 STORE 1:2 +FLAGS (\\Deleted)\r\n", [
+      |> TestServer.tagged("STORE 1:2 +FLAGS (\\Deleted)\r\n", [
         "* 1 FETCH (FLAGS (\\Deleted))\r\n",
         "* 2 FETCH (FLAGS (\\Deleted))\r\n",
-        "A003 OK Store completed\r\n"
+        "OK Store completed\r\n"
       ])
-      |> TestServer.on("A004 EXPUNGE\r\n", [
+      |> TestServer.tagged("EXPUNGE\r\n", [
         "* 1 EXPUNGE\r\n",
         "* 1 EXPUNGE\r\n",
-        "A004 OK Expunge completed\r\n"
+        "OK Expunge completed\r\n"
       ])
-      |> TestServer.on("A005 LOGOUT\r\n", [
+      |> TestServer.tagged("LOGOUT\r\n", [
         "* BYE We're out of here\r\n",
-        "A005 OK Logged out\r\n"
+        "OK Logged out\r\n"
       ])
     end)
 
@@ -1209,34 +1209,34 @@ defmodule Mailroom.IMAPTest do
 
     TestServer.expect(server, fn expectations ->
       expectations
-      |> TestServer.on(:connect, "* OK IMAP ready\r\n")
-      |> TestServer.on("A001 LOGIN \"test@example.com\" \"P@55w0rD\"\r\n", [
+      |> TestServer.tagged(:connect, "* OK IMAP ready\r\n")
+      |> TestServer.tagged("LOGIN \"test@example.com\" \"P@55w0rD\"\r\n", [
         "* CAPABILITY (IMAPrev4 IDLE)\r\n",
-        "A001 OK test@example.com authenticated (Success)\r\n"
+        "OK test@example.com authenticated (Success)\r\n"
       ])
-      |> TestServer.on("A002 SELECT INBOX\r\n", [
+      |> TestServer.tagged("SELECT INBOX\r\n", [
         "* FLAGS (\\Flagged \\Draft \\Deleted \\Seen)\r\n",
         "* OK [PERMANENTFLAGS (\\Flagged \\Draft \\Deleted \\Seen \\*)] Flags permitted\r\n",
         "* 0 EXISTS\r\n",
         "* 0 RECENT\r\n",
-        "A002 OK [READ-WRITE] INBOX selected. (Success)\r\n"
+        "OK [READ-WRITE] INBOX selected. (Success)\r\n"
       ])
-      |> TestServer.on("A003 IDLE\r\n", [
+      |> TestServer.tagged("IDLE\r\n", [
         "+ idling\r\n"
       ])
-      |> TestServer.on("DONE\r\n", [
-        "A003 OK IDLE terminated\r\n"
+      |> TestServer.tagged("DONE\r\n", [
+        "OK IDLE terminated\r\n"
       ])
-      |> TestServer.on("A004 IDLE\r\n", [
+      |> TestServer.tagged("IDLE\r\n", [
         "+ idling\r\n",
         "* 2 EXISTS\r\n"
       ])
-      |> TestServer.on("DONE\r\n", [
-        "A004 OK IDLE terminated\r\n"
+      |> TestServer.tagged("DONE\r\n", [
+        "OK IDLE terminated\r\n"
       ])
-      |> TestServer.on("A005 LOGOUT\r\n", [
+      |> TestServer.tagged("LOGOUT\r\n", [
         "* BYE We're out of here\r\n",
-        "A005 OK Logged out\r\n"
+        "OK Logged out\r\n"
       ])
     end)
 
@@ -1260,21 +1260,21 @@ defmodule Mailroom.IMAPTest do
 
     TestServer.expect(server, fn expectations ->
       expectations
-      |> TestServer.on(:connect, "* OK IMAP ready\r\n")
-      |> TestServer.on("A001 LOGIN \"test@example.com\" \"P@55w0rD\"\r\n", [
+      |> TestServer.tagged(:connect, "* OK IMAP ready\r\n")
+      |> TestServer.tagged("LOGIN \"test@example.com\" \"P@55w0rD\"\r\n", [
         "* CAPABILITY (IMAPrev4)\r\n",
-        "A001 OK test@example.com authenticated (Success)\r\n"
+        "OK test@example.com authenticated (Success)\r\n"
       ])
-      |> TestServer.on("A002 SELECT INBOX\r\n", [
+      |> TestServer.tagged("SELECT INBOX\r\n", [
         "* FLAGS (\\Flagged \\Draft \\Deleted \\Seen)\r\n",
         "* OK [PERMANENTFLAGS (\\Flagged \\Draft \\Deleted \\Seen \\*)] Flags permitted\r\n",
         "* 2 EXISTS\r\n",
         "* 1 RECENT\r\n",
-        "A002 OK [READ-WRITE] INBOX selected. (Success)\r\n"
+        "OK [READ-WRITE] INBOX selected. (Success)\r\n"
       ])
-      |> TestServer.on("A003 LOGOUT\r\n", [
+      |> TestServer.tagged("LOGOUT\r\n", [
         "* BYE We're out of here\r\n",
-        "A003 OK Logged out\r\n"
+        "OK Logged out\r\n"
       ])
     end)
 
