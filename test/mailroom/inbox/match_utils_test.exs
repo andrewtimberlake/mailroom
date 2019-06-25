@@ -7,6 +7,13 @@ defmodule Mailroom.Inbox.MatchUtilsTest do
 
   test "match_recipient/2 with binary" do
     mail_info = %{
+      recipients: [
+        "test-to@example.com",
+        "other-to@example.com",
+        "test-cc@example.com",
+        "other-cc@example.com",
+        "test-bcc@example.com"
+      ],
       to: ["test-to@example.com", "other-to@example.com"],
       cc: ["test-cc@example.com", "other-cc@example.com"],
       bcc: "test-bcc@example.com"
@@ -27,6 +34,13 @@ defmodule Mailroom.Inbox.MatchUtilsTest do
 
   test "match_recipient/2 with Regex" do
     mail_info = %{
+      recipients: [
+        "test-to@example.com",
+        "other-to@example.com",
+        "test-cc@example.com",
+        "other-cc@example.com",
+        "test-bcc@example.com"
+      ],
       to: ["test-to@example.com", "other-to@example.com"],
       cc: ["test-cc@example.com", "other-cc@example.com"],
       bcc: "test-bcc@example.com"

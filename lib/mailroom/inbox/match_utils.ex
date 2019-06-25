@@ -2,10 +2,8 @@ defmodule Mailroom.Inbox.MatchUtils do
   alias Mailroom.IMAP.{Envelope, BodyStructure}
   alias BodyStructure.Part
 
-  def match_recipient(%{to: to, cc: cc, bcc: bcc}, pattern) do
-    Enum.any?([to, cc, bcc], fn list ->
-      match_in_list(list, pattern)
-    end)
+  def match_recipient(%{recipients: recipients}, pattern) do
+    match_in_list(recipients, pattern)
   end
 
   def match_to(%{to: to}, pattern) do
@@ -54,14 +52,25 @@ defmodule Mailroom.Inbox.MatchUtils do
 
     has_attachment = BodyStructure.has_attachment?(part)
 
+    to = get_email_addresses(to)
+    cc = get_email_addresses(cc)
+    bcc = get_email_addresses(bcc)
+
+    recipients = Enum.flat_map([to, cc, bcc], & &1) |> Enum.uniq()
+
     %{
-      to: Enum.map(List.wrap(to), &String.downcase(&1.email)),
-      cc: Enum.map(List.wrap(cc), &String.downcase(&1.email)),
-      bcc: Enum.map(List.wrap(bcc), &String.downcase(&1.email)),
-      from: Enum.map(List.wrap(from), &String.downcase(&1.email)),
-      reply_to: Enum.map(List.wrap(reply_to), &String.downcase(&1.email)),
+      recipients: recipients,
+      to: to,
+      cc: cc,
+      bcc: bcc,
+      from: get_email_addresses(from),
+      reply_to: get_email_addresses(reply_to),
       subject: subject,
       has_attachment: has_attachment
     }
+  end
+
+  defp get_email_addresses(list) do
+    Enum.map(List.wrap(list), &String.downcase(&1.email))
   end
 end
