@@ -176,15 +176,16 @@ defmodule Mailroom.Inbox do
         if emails > 0 do
           Logger.debug("Processing #{emails} emails")
 
-          Mailroom.IMAP.each(client, [:envelope, :body_structure], fn {msg_id, response} ->
+          Mailroom.IMAP.search(client, "UNSEEN", [:envelope, :body_structure], fn {msg_id,
+                                                                                   response} ->
             %{envelope: envelope, body_structure: body_structure} = response
             mail_info = generate_mail_info(envelope, body_structure)
 
             case perform_match(client, msg_id, mail_info, assigns) do
-              :done ->
+              :delete ->
                 Mailroom.IMAP.add_flags(client, msg_id, [:deleted])
 
-              :no_match ->
+              :seen ->
                 Mailroom.IMAP.add_flags(client, msg_id, [:seen])
             end
           end)
