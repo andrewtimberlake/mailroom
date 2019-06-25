@@ -181,12 +181,28 @@ defmodule Mailroom.Inbox do
             %{envelope: envelope, body_structure: body_structure} = response
             mail_info = generate_mail_info(envelope, body_structure)
 
-            case perform_match(client, msg_id, mail_info, assigns) do
-              :delete ->
-                Mailroom.IMAP.add_flags(client, msg_id, [:deleted])
+            try do
+              case perform_match(client, msg_id, mail_info, assigns) do
+                :delete ->
+                  Mailroom.IMAP.add_flags(client, msg_id, [:deleted])
 
-              :seen ->
+                :seen ->
+                  Mailroom.IMAP.add_flags(client, msg_id, [:seen])
+
+                other ->
+                  Logger.warn("Unexpected process response #{inspect(other)}")
+                  Mailroom.IMAP.add_flags(client, msg_id, [:seen])
+              end
+            catch
+              kind, reason ->
+                stack = System.stacktrace()
+
+                Logger.error(fn ->
+                  "Error processing #{mail_info} -> #{inspect(kind)}, #{inspect(reason)}, #{Exception.format_stacktrace(stack)}"
+                end)
+
                 Mailroom.IMAP.add_flags(client, msg_id, [:seen])
+                # :erlang.raise(kind, reason, stack)
             end
           end)
 
