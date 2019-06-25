@@ -128,7 +128,12 @@ defmodule Mailroom.IMAP do
       #…
   """
   def fetch(pid, number_or_range, items_list, func \\ nil, opts \\ []) do
-    {:ok, list} = GenServer.call(pid, {:fetch, number_or_range, items_list}, Keyword.get(opts, :timeout, 300_000))
+    {:ok, list} =
+      GenServer.call(
+        pid,
+        {:fetch, number_or_range, items_list},
+        Keyword.get(opts, :timeout, 300_000)
+      )
 
     if func do
       Enum.each(list, func)

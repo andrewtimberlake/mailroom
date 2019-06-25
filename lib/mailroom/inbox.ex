@@ -126,8 +126,14 @@ defmodule Mailroom.Inbox do
         _ -> raise("A match block must have a call to process")
       end
 
-    {commands, matches} = Enum.split_with(matches, fn {func_name, _, _} -> func_name in ~w[fetch_mail]a end)
-    fetch_mail = Enum.any?(commands, fn {:fetch_mail, _, _} -> true; _ -> false end)
+    {commands, matches} =
+      Enum.split_with(matches, fn {func_name, _, _} -> func_name in ~w[fetch_mail]a end)
+
+    fetch_mail =
+      Enum.any?(commands, fn
+        {:fetch_mail, _, _} -> true
+        _ -> false
+      end)
 
     {module, function} =
       case process do
@@ -153,7 +159,8 @@ defmodule Mailroom.Inbox do
       Module.get_attribute(env.module, :matches)
       |> Enum.reverse()
       |> Enum.map(fn match ->
-      %{patterns: patterns, module: module, function: function, fetch_mail: fetch_mail} = match
+        %{patterns: patterns, module: module, function: function, fetch_mail: fetch_mail} = match
+
         patterns =
           Enum.map(patterns, fn {func_name, context, arguments} ->
             {:&, [], [{:"match_#{func_name}", context, [{:&, [], [1]} | List.wrap(arguments)]}]}
@@ -242,6 +249,7 @@ defmodule Mailroom.Inbox do
       defp fetch_mail(client, msg_id) do
         {:ok, [{^msg_id, %{"BODY[]" => mail}}]} =
           Mailroom.IMAP.fetch(client, msg_id, "BODY.PEEK[]")
+
         {mail, Mail.Parsers.RFC2822.parse(mail)}
       end
 
