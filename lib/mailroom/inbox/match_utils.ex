@@ -65,7 +65,7 @@ defmodule Mailroom.Inbox.MatchUtils do
       bcc: bcc,
       from: get_email_addresses(from),
       reply_to: get_email_addresses(reply_to),
-      subject: subject,
+      subject: subject || "",
       has_attachment: has_attachment
     }
   end
