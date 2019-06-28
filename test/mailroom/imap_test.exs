@@ -1066,6 +1066,49 @@ defmodule Mailroom.IMAPTest do
     IMAP.logout(client)
   end
 
+  test "FETCH with data in middle of response" do
+    server = TestServer.start(ssl: true)
+
+    TestServer.expect(server, fn expectations ->
+      expectations
+      |> TestServer.tagged(:connect, "* OK IMAP ready\r\n")
+      |> TestServer.tagged("LOGIN \"test@example.com\" \"P@55w0rD\"\r\n", [
+        "* CAPABILITY (IMAPrev4)\r\n",
+        "OK test@example.com authenticated (Success)\r\n"
+      ])
+      |> TestServer.tagged("SELECT INBOX\r\n", [
+        "* FLAGS (\\Flagged \\Draft \\Deleted \\Seen)\r\n",
+        "* OK [PERMANENTFLAGS (\\Flagged \\Draft \\Deleted \\Seen \\*)] Flags permitted\r\n",
+        "* 2 EXISTS\r\n",
+        "* 1 RECENT\r\n",
+        "OK [READ-WRITE] INBOX selected. (Success)\r\n"
+      ])
+      |> TestServer.tagged("FETCH 1 (ENVELOPE)\r\n", [
+            "* 1 FETCH (ENVELOPE (\"Thu, 27 Jun 2019 12:00:01 +0200\" {5}\r\na\rbcd ((\"John Doe\" NIL \"john\" \"example.com\")) ((\"John Doe\" NIL \"john\" \"example.com\")) ((\"John Doe\" NIL \"john\" \"example.com\")) ((\"Bob\" NIL \"bob\" \"example.com\")) NIL NIL \"<bob@example.com>\" \"<xxxxxx>\"))\r\n",
+            "OK Success\r\n"
+      ])
+      |> TestServer.tagged("LOGOUT\r\n", [
+        "* BYE We're out of here\r\n",
+        "OK Logged out\r\n"
+      ])
+    end)
+
+    assert {:ok, client} =
+             IMAP.connect(server.address, "test@example.com", "P@55w0rD",
+               port: server.port,
+               ssl: true,
+               debug: @debug
+             )
+
+    {:ok, msgs} =
+      client
+      |> IMAP.select(:inbox)
+      |> IMAP.fetch(1, :envelope)
+
+    assert msgs == [{1, %{envelope: %Mailroom.IMAP.Envelope{bcc: [], cc: [], date: {{2019, 6, 27}, {12, 0, 1}}, from: [%Mailroom.IMAP.Envelope.Address{email: "john@example.com", host_name: "example.com", mailbox_name: "john", name: "John Doe"}], in_reply_to: "<bob@example.com>", message_id: "<xxxxxx>", reply_to: [%Mailroom.IMAP.Envelope.Address{email: "john@example.com", host_name: "example.com", mailbox_name: "john", name: "John Doe"}], sender: [%Mailroom.IMAP.Envelope.Address{email: "john@example.com", host_name: "example.com", mailbox_name: "john", name: "John Doe"}], subject: "a\rbcd", to: [%Mailroom.IMAP.Envelope.Address{email: "bob@example.com", host_name: "example.com", mailbox_name: "bob", name: "Bob"}]}}}]
+    IMAP.logout(client)
+  end
+
   test "STORE" do
     server = TestServer.start(ssl: true)
 

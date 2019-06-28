@@ -541,7 +541,12 @@ defmodule Mailroom.IMAP do
   defp parse_fetch_results(%{} = map) do
     map
     |> Enum.map(fn {key, value} ->
-      parse_fetch_item(key, value)
+      try do
+        parse_fetch_item(key, value)
+      rescue
+        _ ->
+          {key, :error}
+      end
     end)
     |> Map.new()
   end
@@ -792,12 +797,15 @@ defmodule Mailroom.IMAP do
   defp increment_command_number(999), do: 1
   defp increment_command_number(number), do: number + 1
 
+  defp fetch_all_data(bytes_required, bytes_read, acc, _state) when bytes_read > bytes_required,
+    do: :erlang.iolist_to_binary(Enum.reverse(acc))
+
   defp fetch_all_data(bytes, bytes, acc, state),
     do: :erlang.iolist_to_binary(Enum.reverse([get_next_line(state) | acc]))
 
-  defp fetch_all_data(bytes, bytes_read, acc, state) do
+  defp fetch_all_data(bytes_required, bytes_read, acc, state) do
     line = get_next_line(state)
-    fetch_all_data(bytes, bytes_read + byte_size(line), [line | acc], state)
+    fetch_all_data(bytes_required, bytes_read + byte_size(line), [line | acc], state)
   end
 
   defp get_next_line(%{debug: debug}) do
