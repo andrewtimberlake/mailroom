@@ -78,9 +78,8 @@ defmodule Mailroom.Inbox do
         {:noreply, state}
       end
 
-      def handle_info(msg, state) do
-        IO.warn(msg, label: "handle_info")
-        {:noreply, state}
+      def handle_info({:ssl_closed, _}, state) do
+        handle_continue(:after_init, state)
       end
 
       def handle_continue(:after_init, %{opts: opts} = state) do
