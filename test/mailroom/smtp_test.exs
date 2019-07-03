@@ -219,6 +219,52 @@ defmodule Mailroom.SMTPTest do
     SMTP.quit(client)
   end
 
+  test "SMTP with AUTH LOGIN after TLS" do
+    server = TestServer.start()
+
+    TestServer.expect(server, fn expectations ->
+      expectations
+      |> TestServer.on(
+        :connect,
+        "220 myserver.com.\r\n"
+      )
+      |> TestServer.on(
+        "EHLO #{SMTP.fqdn()}\r\n",
+        "250-myserver.com\r\n250-SIZE\r\n250-STARTTLS\r\n250 HELP\r\n"
+      )
+      |> TestServer.on(
+        "STARTTLS\r\n",
+        "220 TLS go ahead\r\n",
+        ssl: true
+      )
+      |> TestServer.on(
+        "EHLO #{SMTP.fqdn()}\r\n",
+        "250-myserver.com\r\n250-SIZE\r\n250 AUTH LOGIN PLAIN\r\n"
+      )
+      |> TestServer.on(
+        "AUTH LOGIN\r\n",
+        "334 VXNlcm5hbWU6\r\n"
+      )
+      |> TestServer.on(
+        "dXNlcm5hbWU=\r\n",
+        "334 UGFzc3dvcmQ6\r\n"
+      )
+      |> TestServer.on(
+        "cGFzc3dvcmQ=\r\n",
+        "235 Authenticated\r\n"
+      )
+      |> TestServer.on(
+        "QUIT\r\n",
+        "221 Bye\r\n"
+      )
+    end)
+
+    {:ok, client} =
+      SMTP.connect(server.address, port: server.port, username: "username", password: "password")
+
+    SMTP.quit(client)
+  end
+
   # test "connect" do
   #   server   = Application.get_env(:mailroom, :smtp_server)
   #   # port     = Application.get_env(:mailroom, :smtp_port)
