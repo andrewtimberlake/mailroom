@@ -201,31 +201,6 @@ defmodule Mailroom.SMTP do
   defp decode_base64_lowercase(string),
     do: string |> Base.decode64!() |> String.downcase()
 
-  def send_message(socket, from, to, message) do
-    Socket.send(socket, ["MAIL FROM: <", from, ">\r\n"])
-    {:ok, data} = Socket.recv(socket)
-    {:ok, {"250", _ok}} = parse_smtp_response(data)
-
-    Socket.send(socket, ["RCPT TO: <", to, ">\r\n"])
-    {:ok, data} = Socket.recv(socket)
-    {:ok, {"250", _}} = parse_smtp_response(data)
-
-    Socket.send(socket, "DATA\r\n")
-    {:ok, data} = Socket.recv(socket)
-    {:ok, {"354", _ok}} = parse_smtp_response(data)
-
-    message
-    |> String.split(~r/\r\n/)
-    |> Enum.each(fn line ->
-      :ok = Socket.send(socket, [line, "\r\n"])
-    end)
-
-    :ok = Socket.send(socket, ".\r\n")
-    {:ok, data} = Socket.recv(socket)
-    {:ok, {"250", _}} = parse_smtp_response(data)
-    :ok
-  end
-
   def quit(socket) do
     Socket.send(socket, "QUIT\r\n")
     {:ok, data} = Socket.recv(socket)
@@ -238,4 +213,70 @@ defmodule Mailroom.SMTP do
     {:hostent, name, _aliases, :inet, _, _addresses} = hostent
     to_string(name)
   end
+
+  def send(%Mailroom.SMTP.Email{from: ""}, _socket) do
+    {:error, "Email can't be sent without a 'from' address"}
+  end
+
+  def send(%Mailroom.SMTP.Email{to: []}, _socket) do
+    {:error, "Email can't be sent without a 'to' address"}
+  end
+
+  def send(email = %Mailroom.SMTP.Email{}, socket) do
+    Socket.send(socket, ["MAIL FROM: <", email.from, ">\r\n"])
+    {:ok, data} = Socket.recv(socket)
+    {:ok, {"250", _ok}} = parse_smtp_response(data)
+
+    send_recipient_addresses(socket, email.to ++ email.cc)
+
+    Socket.send(socket, "DATA\r\n")
+    {:ok, data} = Socket.recv(socket)
+    {:ok, {"354", _ok}} = parse_smtp_response(data)
+
+    data = compose_message(email)
+    send_email_message(socket, data)
+
+    :ok = Socket.send(socket, ".\r\n")
+    {:ok, data} = Socket.recv(socket)
+    {:ok, {"250", _}} = parse_smtp_response(data)
+    :ok
+  end
+
+  defp send_recipient_addresses(_socket, []) do
+    :ok
+  end
+
+  defp send_recipient_addresses(socket, [to | tail]) do
+    Socket.send(socket, ["RCPT TO: <", to, ">\r\n"])
+    {:ok, data} = Socket.recv(socket)
+    {:ok, {"250", _}} = parse_smtp_response(data)
+
+    send_recipient_addresses(socket, tail)
+  end
+
+  defp send_email_message(socket, message) do
+    message
+    |> String.split(~r/\r\n/)
+    |> Enum.each(fn line ->
+      :ok = Socket.send(socket, [line, "\r\n"])
+    end)
+  end
+
+  def compose_message(email) do
+    (["From: #{email.from}"] ++
+       add_if_not_empty("To", email.to) ++
+       add_if_not_empty("Cc", email.cc) ++
+       [
+         "Subject: #{email.subject}",
+         "",
+         email.message
+       ])
+    |> Enum.join("\r\n")
+  end
+
+  defp add_if_not_empty(_label, []),
+    do: []
+
+  defp add_if_not_empty(label, value),
+    do: ["#{label}: #{Enum.join(value, ",")}"]
 end
