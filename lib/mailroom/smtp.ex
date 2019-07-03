@@ -201,6 +201,19 @@ defmodule Mailroom.SMTP do
   defp decode_base64_lowercase(string),
     do: string |> Base.decode64!() |> String.downcase()
 
+  def quit(socket) do
+    Socket.send(socket, "QUIT\r\n")
+    {:ok, data} = Socket.recv(socket)
+    {:ok, {"221", _message}} = parse_smtp_response(data)
+  end
+
+  def fqdn do
+    {:ok, name} = :inet.gethostname()
+    {:ok, hostent} = :inet.gethostbyname(name)
+    {:hostent, name, _aliases, :inet, _, _addresses} = hostent
+    to_string(name)
+  end
+
   def send_message(socket, from, to, message) do
     Socket.send(socket, ["MAIL FROM: <", from, ">\r\n"])
     {:ok, data} = Socket.recv(socket)
@@ -226,16 +239,33 @@ defmodule Mailroom.SMTP do
     :ok
   end
 
-  def quit(socket) do
-    Socket.send(socket, "QUIT\r\n")
+  def send(email = %Mail.Message{}, socket) do
+    Socket.send(socket, ["MAIL FROM: <", Mail.get_from(email), ">\r\n"])
     {:ok, data} = Socket.recv(socket)
-    {:ok, {"221", _message}} = parse_smtp_response(data)
-  end
+    {:ok, {"250", _ok}} = parse_smtp_response(data)
 
-  def fqdn do
-    {:ok, name} = :inet.gethostname()
-    {:ok, hostent} = :inet.gethostbyname(name)
-    {:hostent, name, _aliases, :inet, _, _addresses} = hostent
-    to_string(name)
+    email
+    |> Mail.all_recipients()
+    |> Enum.each(fn address ->
+      Socket.send(socket, ["RCPT TO: <", address, ">\r\n"])
+      {:ok, data} = Socket.recv(socket)
+      {:ok, {"250", _}} = parse_smtp_response(data)
+    end)
+
+    Socket.send(socket, "DATA\r\n")
+    {:ok, data} = Socket.recv(socket)
+    {:ok, {"354", _ok}} = parse_smtp_response(data)
+
+    email
+    |> Mail.Renderers.RFC2822.render()
+    |> String.split(~r/\r\n/)
+    |> Enum.each(fn line ->
+      :ok = Socket.send(socket, [line, "\r\n"])
+    end)
+
+    :ok = Socket.send(socket, ".\r\n")
+    {:ok, data} = Socket.recv(socket)
+    {:ok, {"250", _}} = parse_smtp_response(data)
+    :ok
   end
 end
