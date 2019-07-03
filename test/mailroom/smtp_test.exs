@@ -3,6 +3,7 @@ defmodule Mailroom.SMTPTest do
   doctest Mailroom.SMTP
 
   alias Mailroom.{SMTP, TestServer}
+  alias Mailroom.SMTP.Email
 
   test "SMTP server doesn't support EHLO" do
     server = TestServer.start()
@@ -32,18 +33,15 @@ defmodule Mailroom.SMTPTest do
   end
 
   test "send mail" do
+    email =
+      Email.new()
+      |> Email.from("me@localhost")
+      |> Email.to("you@localhost")
+      |> Email.subject("Test message")
+      |> Email.message("This is a test message")
+
     server = TestServer.start()
-
-    msg =
-      """
-      Date: Fri, 30 Sep 2016 12:02:00 +0200
-      From: me@localhost
-      To: you@localhost
-      Subject: Test message
-
-      This is a test message
-      """
-      |> String.replace(~r/(?<!\r)\n/, "\r\n")
+    msg = SMTP.compose_message(email)
 
     lines = String.split(msg, "\r\n") |> Enum.map(&(&1 <> "\r\n"))
 
@@ -80,7 +78,8 @@ defmodule Mailroom.SMTPTest do
     end)
 
     {:ok, client} = SMTP.connect(server.address, port: server.port)
-    :ok = SMTP.send_message(client, "me@localhost", "you@localhost", msg)
+
+    :ok = SMTP.send(email, client)
     SMTP.quit(client)
   end
 
