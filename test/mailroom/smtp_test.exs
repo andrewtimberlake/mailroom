@@ -30,7 +30,7 @@ defmodule Mailroom.SMTPTest do
     {:ok, client} = SMTP.connect(server.address, port: server.port)
     SMTP.quit(client)
   end
-  
+
   test "send mail" do
     server = TestServer.start()
 
@@ -88,14 +88,16 @@ defmodule Mailroom.SMTPTest do
     email =
       Mail.build()
       |> Mail.put_from("me@example.com")
-      |> Mail.put_to("you@example.com")
+      |> Mail.put_to(["you@example.com", "you2@example.com"])
+      |> Mail.put_cc(["them@example.com"])
       |> Mail.put_subject("Test message")
       |> Mail.put_text("This is a test message")
-    
+
     msg = Mail.Renderers.RFC2822.render(email)
     lines = String.split(msg, "\r\n") |> Enum.map(&(&1 <> "\r\n"))
 
     server = TestServer.start()
+
     TestServer.expect(server, fn expectations ->
       expectations
       |> TestServer.on(
@@ -112,6 +114,14 @@ defmodule Mailroom.SMTPTest do
       )
       |> TestServer.on(
         "RCPT TO: <you@example.com>\r\n",
+        "250 OK\r\n"
+      )
+      |> TestServer.on(
+        "RCPT TO: <you2@example.com>\r\n",
+        "250 OK\r\n"
+      )
+      |> TestServer.on(
+        "RCPT TO: <them@example.com>\r\n",
         "250 OK\r\n"
       )
       |> TestServer.on(
