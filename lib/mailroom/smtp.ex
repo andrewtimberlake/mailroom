@@ -277,7 +277,9 @@ defmodule Mailroom.SMTP do
     message
     |> String.split(~r/\r\n/)
     |> Enum.each(fn line ->
-      :ok = Socket.send(socket, [line, "\r\n"])
+      ## Escape period at start of line (rfc5321 4.5.2)
+      escaped_line = String.replace(line, ~r/^\./, "..")
+      :ok = Socket.send(socket, [escaped_line, "\r\n"])
     end)
 
     :ok
