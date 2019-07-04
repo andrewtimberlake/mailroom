@@ -7,9 +7,12 @@ defmodule Mailroom.SMTP do
 
     with {:ok, _banner} <- read_banner(socket),
          {:ok, extensions} <- greet(socket),
-         {:ok, socket, _extensions} <- try_starttls(socket, extensions),
-         {:ok, socket} <- try_auth(socket, extensions, options),
-         do: {:ok, socket}
+         {:ok, socket, extensions} <- try_starttls(socket, extensions),
+         {:ok, socket} <- try_auth(socket, extensions, options) do
+      {:ok, socket}
+    else
+      err -> err
+    end
   end
 
   defp parse_opts(opts, acc \\ %{ssl: false, port: 25, debug: false})
@@ -118,7 +121,7 @@ defmodule Mailroom.SMTP do
       # TODO: Need to handle error case
       {:ok, socket} = do_starttls(socket)
       # TODO: Need to handle error case
-      {:ok, extensions} = try_ehlo(socket)
+      {:ok, extensions} = greet(socket)
       {:ok, socket, extensions}
     else
       {:ok, socket, extensions}
