@@ -408,9 +408,9 @@ defmodule Mailroom.IMAP do
     {:noreply, state}
   end
 
-  def handle_info(msg, state) do
-    Logger.info("handle_info(#{inspect(msg)}, #{inspect(state)})")
-    {:noreply, state}
+  def handle_info({:ssl_closed, _}, state) do
+    Logger.warn("SSL closed")
+    {:stop, :ssl_closed, state}
   end
 
   defp cancel_idle(socket, timer) do
