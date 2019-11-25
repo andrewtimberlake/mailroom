@@ -2,7 +2,7 @@ defmodule Mailroom.Mixfile do
   use Mix.Project
 
   @github_url "https://github.com/andrewtimberlake/mailroom"
-  @version "0.2.2"
+  @version "0.2.3"
 
   def project do
     [
