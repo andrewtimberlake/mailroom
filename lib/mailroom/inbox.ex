@@ -178,12 +178,9 @@ defmodule Mailroom.Inbox do
         |> Module.get_attribute(:matches)
         |> Enum.flat_map(fn %{patterns: patterns} -> patterns end)
         |> Enum.flat_map(fn
-          {:all, _, _} -> []
-          {:recipient, _, _} -> []
-          {:subject, _, _} -> []
           {:has_attachment?, _, _} -> [:body_structure]
           {:header, _, _} -> [:header]
-          {:to, _, _} -> []
+          _ -> []
         end)
         |> Enum.uniq()
     ]

@@ -9,30 +9,47 @@ defmodule Mailroom.Inbox.MatchUtils do
     match_in_list(to, pattern)
   end
 
+  def match_to(_, _pattern), do: false
+
   def match_cc(%{cc: cc}, pattern) do
     match_in_list(cc, pattern)
   end
+
+  def match_cc(_, _pattern), do: false
 
   def match_bcc(%{bcc: bcc}, pattern) do
     match_in_list(bcc, pattern)
   end
 
+  def match_bcc(_, _pattern), do: false
+
   def match_from(%{from: from}, pattern) do
     match_in_list(from, pattern)
   end
 
+  def match_from(_, _pattern), do: false
+
   def match_subject(%{subject: pattern}, pattern), do: true
   def match_subject(%{subject: subject}, %Regex{} = pattern), do: Regex.match?(pattern, subject)
-  def match_subject(%{subject: _subject}, _pattern), do: false
+  def match_subject(_, _pattern), do: false
 
   def match_has_attachment?(%{has_attachment: true}), do: true
   def match_has_attachment?(%{has_attachment: false}), do: false
+  def match_has_attachment?(_), do: false
 
-  def match_header(%{headers: headers}, header_name, pattern) do
+  def match_header(%{headers: headers}, header_name, %Regex{} = pattern) do
     headers[String.downcase(header_name)]
     |> List.wrap()
     |> Enum.any?(fn header_value -> Regex.match?(pattern, header_value) end)
   end
+
+  def match_header(%{headers: headers}, header_name, pattern) do
+    headers[String.downcase(header_name)]
+    |> List.wrap()
+    |> Enum.any?(&(&1 == pattern))
+  end
+
+  def match_header(_, _header_name, _pattern), do: false
 
   def match_all(_), do: true
 
