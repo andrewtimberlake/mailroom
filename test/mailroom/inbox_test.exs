@@ -26,6 +26,11 @@ defmodule Mailroom.InboxTest do
       :delete
     end
 
+    def match_header(%{id: msg_id, mail: nil, message: nil, assigns: %{test_pid: pid}}) do
+      send(pid, {:match_header, msg_id})
+      :delete
+    end
+
     def match_all(%{id: msg_id, assigns: %{test_pid: pid}}) do
       send(pid, {:match_all, msg_id})
       :delete
@@ -74,6 +79,31 @@ defmodule Mailroom.InboxTest do
       has_attachment?
 
       process(TestMailProcessor, :match_has_attachment)
+    end
+
+    match do
+      all
+
+      process(TestMailProcessor, :match_all)
+    end
+
+    def match_to(%{id: msg_id, assigns: %{test_pid: pid}}) do
+      send(pid, {:matched_to, msg_id})
+      :delete
+    end
+  end
+
+  defmodule TestMailHeaderRouter do
+    use Mailroom.Inbox
+
+    def config(opts) do
+      Keyword.merge(opts, username: "test@example.com", password: "P@55w0rD")
+    end
+
+    match do
+      header("In-Reply-To", ~r/message-id/)
+
+      process(TestMailProcessor, :match_header)
     end
 
     match do
@@ -470,5 +500,83 @@ defmodule Mailroom.InboxTest do
 
     assert log =~
              "Processing msg:1 TO:george@example.com FROM:andrew@internuity.net SUBJECT:\"To be fetched\" using Mailroom.InboxTest.TestMailProcessor#match_and_fetch -> :delete"
+  end
+
+  test "Match by header" do
+    server = TestServer.start(ssl: true)
+
+    headers =
+      Mail.build_multipart()
+      |> Mail.put_from("andrew@internuity.net")
+      |> Mail.put_subject("Test with header")
+      |> Mail.put_to("reply@example.com")
+      |> Mail.Message.put_header("in-reply-to", "message-id")
+      |> Mail.Renderers.RFC2822.render()
+      |> String.split("\r\n\r\n")
+      |> List.first()
+
+    TestServer.expect(server, fn expectations ->
+      expectations
+      |> TestServer.tagged(:connect, "* OK IMAP ready\r\n")
+      |> TestServer.tagged("LOGIN \"test@example.com\" \"P@55w0rD\"\r\n", [
+        "* CAPABILITY (IMAPrev4)\r\n",
+        "OK test@example.com authenticated (Success)\r\n"
+      ])
+      |> TestServer.tagged("SELECT INBOX\r\n", [
+        "* FLAGS (\\Flagged \\Draft \\Deleted \\Seen)\r\n",
+        "* OK [PERMANENTFLAGS (\\Flagged \\Draft \\Deleted \\Seen \\*)] Flags permitted\r\n",
+        "* 1 EXISTS\r\n",
+        "* 0 RECENT\r\n",
+        "OK [READ-WRITE] INBOX selected. (Success)\r\n"
+      ])
+      |> TestServer.tagged("SEARCH UNSEEN\r\n", [
+        "* SEARCH 1\r\n",
+        "OK Success\r\n"
+      ])
+      |> TestServer.tagged("FETCH 1 (ENVELOPE BODY.PEEK[HEADER])\r\n", [
+        ~s[* 1 FETCH (ENVELOPE ("Mon, 27 Jul 2020 11:57:36 +0200" "Test with header" (("Andrew Timberlake" NIL "andrew" "internuity.net")) (("Andrew Timberlake" NIL "andrew" "internuity.net")) (("Andrew Timberlake" NIL "andrew" "internuity.net")) ((NIL NIL "reply" "example.com")) NIL NIL "<f69b912d-310b-4133-b526-07f715242db6@Spark>" "<4cff0831-67f5-4457-b60a-3331ba893348@Spark>") BODY\[HEADER\] {#{
+          byte_size(headers)
+        }}\r\n#{headers})\r\n],
+        "OK Success\r\n"
+      ])
+      |> TestServer.tagged("STORE 1 +FLAGS (\\Deleted)\r\n", [
+        "* 1 FETCH (FLAGS (\\Deleted))\r\n",
+        "OK Store completed\r\n"
+      ])
+      |> TestServer.tagged("EXPUNGE\r\n", [
+        "* 1 EXPUNGE\r\n",
+        "OK Expunge completed\r\n"
+      ])
+      |> TestServer.tagged("IDLE\r\n", [
+        "+ idling\r\n"
+      ])
+      |> TestServer.tagged("DONE\r\n", [
+        "OK IDLE terminated\r\n"
+      ])
+      |> TestServer.tagged("LOGOUT\r\n", [
+        "* BYE We're out of here\r\n",
+        "OK Logged out\r\n"
+      ])
+    end)
+
+    log =
+      ExUnit.CaptureLog.capture_log(fn ->
+        {:ok, pid} =
+          TestMailHeaderRouter.start_link(
+            server: server.address,
+            port: server.port,
+            ssl: true,
+            assigns: %{test_pid: self()},
+            debug: @debug
+          )
+
+        assert_receive({:match_header, 1})
+        TestMailHeaderRouter.close(pid)
+      end)
+
+    assert log =~ "Processing 1 emails"
+
+    assert log =~
+             "Processing msg:1 TO:reply@example.com FROM:andrew@internuity.net SUBJECT:\"Test with header\" using Mailroom.InboxTest.TestMailProcessor#match_header -> :delete"
   end
 end

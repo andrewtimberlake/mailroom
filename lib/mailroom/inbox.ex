@@ -172,6 +172,22 @@ defmodule Mailroom.Inbox do
         {:{}, [], [patterns, module, function, fetch_mail]}
       end)
 
+    fetch_items_required = [
+      :envelope
+      | env.module
+        |> Module.get_attribute(:matches)
+        |> Enum.flat_map(fn %{patterns: patterns} -> patterns end)
+        |> Enum.flat_map(fn
+          {:all, _, _} -> []
+          {:recipient, _, _} -> []
+          {:subject, _, _} -> []
+          {:has_attachment?, _, _} -> [:body_structure]
+          {:header, _, _} -> [:header]
+          {:to, _, _} -> []
+        end)
+        |> Enum.uniq()
+    ]
+
     quote location: :keep do
       defp process_mailbox(client, %{assigns: assigns}) do
         emails = Mailroom.IMAP.email_count(client)
@@ -179,8 +195,8 @@ defmodule Mailroom.Inbox do
         if emails > 0 do
           Logger.debug("Processing #{emails} emails")
 
-          Mailroom.IMAP.search(client, "UNSEEN", [:envelope, :body_structure], fn {msg_id,
-                                                                                   response} ->
+          Mailroom.IMAP.search(client, "UNSEEN", unquote(fetch_items_required), fn {msg_id,
+                                                                                    response} ->
             mail_info = generate_mail_info(response)
 
             try do

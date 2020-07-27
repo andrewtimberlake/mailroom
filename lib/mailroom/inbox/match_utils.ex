@@ -28,6 +28,12 @@ defmodule Mailroom.Inbox.MatchUtils do
   def match_has_attachment?(%{has_attachment: true}), do: true
   def match_has_attachment?(%{has_attachment: false}), do: false
 
+  def match_header(%{headers: headers}, header_name, pattern) do
+    headers[String.downcase(header_name)]
+    |> List.wrap()
+    |> Enum.any?(fn header_value -> Regex.match?(pattern, header_value) end)
+  end
+
   def match_all(_), do: true
 
   defp match_in_list(nil, _pattern), do: false
@@ -64,6 +70,16 @@ defmodule Mailroom.Inbox.MatchUtils do
           false
       end
 
+    headers =
+      case response do
+        %{"BODY[HEADER]" => headers} ->
+          %{headers: headers} = Mail.Parsers.RFC2822.parse(headers <> "\r\n")
+          headers
+
+        _ ->
+          %{}
+      end
+
     %{
       recipients: recipients,
       to: to,
@@ -72,7 +88,8 @@ defmodule Mailroom.Inbox.MatchUtils do
       from: get_email_addresses(from),
       reply_to: get_email_addresses(reply_to),
       subject: subject || "",
-      has_attachment: has_attachment
+      has_attachment: has_attachment,
+      headers: headers
     }
   end
 
