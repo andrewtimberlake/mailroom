@@ -207,6 +207,6 @@ defmodule Mailroom.Inbox.MatchUtilsTest do
              from: ["john@example.com"],
              reply_to: ["reply@example.com"],
              subject: "Test subject"
-           } = generate_mail_info(envelope, body_structure)
+           } = generate_mail_info(%{envelope: envelope, body_structure: body_structure})
   end
 end

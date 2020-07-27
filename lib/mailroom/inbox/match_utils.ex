@@ -1,6 +1,5 @@
 defmodule Mailroom.Inbox.MatchUtils do
   alias Mailroom.IMAP.{Envelope, BodyStructure}
-  alias BodyStructure.Part
 
   def match_recipient(%{recipients: recipients}, pattern) do
     match_in_list(recipients, pattern)
@@ -46,17 +45,24 @@ defmodule Mailroom.Inbox.MatchUtils do
   defp match_in_list([pattern | _], pattern), do: true
   defp match_in_list([_head | tail], pattern), do: match_in_list(tail, pattern)
 
-  def generate_mail_info(%Envelope{} = envelope, %Part{} = part) do
+  def generate_mail_info(%{envelope: %Envelope{} = envelope} = response) do
     %Envelope{to: to, cc: cc, bcc: bcc, from: from, reply_to: reply_to, subject: subject} =
       envelope
-
-    has_attachment = BodyStructure.has_attachment?(part)
 
     to = get_email_addresses(to)
     cc = get_email_addresses(cc)
     bcc = get_email_addresses(bcc)
 
     recipients = Enum.flat_map([to, cc, bcc], & &1) |> Enum.uniq()
+
+    has_attachment =
+      case response do
+        %{body_structure: part} ->
+          BodyStructure.has_attachment?(part)
+
+        _ ->
+          false
+      end
 
     %{
       recipients: recipients,

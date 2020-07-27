@@ -158,7 +158,8 @@ defmodule Mailroom.Inbox do
 
   defmacro __before_compile__(env) do
     matches =
-      Module.get_attribute(env.module, :matches)
+      env.module
+      |> Module.get_attribute(:matches)
       |> Enum.reverse()
       |> Enum.map(fn match ->
         %{patterns: patterns, module: module, function: function, fetch_mail: fetch_mail} = match
@@ -180,8 +181,7 @@ defmodule Mailroom.Inbox do
 
           Mailroom.IMAP.search(client, "UNSEEN", [:envelope, :body_structure], fn {msg_id,
                                                                                    response} ->
-            %{envelope: envelope, body_structure: body_structure} = response
-            mail_info = generate_mail_info(envelope, body_structure)
+            mail_info = generate_mail_info(response)
 
             try do
               case perform_match(client, msg_id, mail_info, assigns) do
