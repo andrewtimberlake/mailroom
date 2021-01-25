@@ -117,7 +117,7 @@ defmodule Mailroom.Socket do
   defp do_send(%{socket: socket, ssl: false}, data),
     do: :gen_tcp.send(socket, data)
 
-  def ssl_client(%{socket: socket, ssl: true} = socket),
+  def ssl_client(%{socket: socket, ssl: true}),
     do: socket
 
   def ssl_client(%{socket: socket, timeout: timeout} = client) do

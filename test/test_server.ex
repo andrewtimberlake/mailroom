@@ -2,14 +2,7 @@ defmodule Mailroom.TestServer.Application do
   use Application
 
   def start(_type, _args) do
-    import Supervisor.Spec, warn: false
-
-    children = [
-      worker(Mailroom.TestServer, [], restart: :transient)
-    ]
-
-    opts = [strategy: :simple_one_for_one, name: Mailroom.TestServer.Supervisor]
-    Supervisor.start_link(children, opts)
+    DynamicSupervisor.start_link(strategy: :one_for_one, name: Mailroom.TestServer.Supervisor)
   end
 end
 
@@ -26,12 +19,11 @@ defmodule Mailroom.TestServer do
     ssl = Keyword.get(opts, :ssl, false)
     {:ok, socket} = get_socket(ssl)
     {:ok, port} = get_port(socket)
-    {:ok, %{address: "localhost", port: port, socket: socket, ssl: ssl}}
+    {:ok, %{address: "localhost", port: port, socket: socket, ssl: ssl, result: :ok}}
   end
 
   def call(pid, request) do
-    result = GenServer.call(pid, request, :infinity)
-    result
+    GenServer.call(pid, request, :infinity)
   end
 
   def cast(pid, request) do
@@ -42,7 +34,7 @@ defmodule Mailroom.TestServer do
     do: {:reply, {address, port}, state}
 
   def handle_call(:on_exit, _from, state),
-    do: {:stop, :normal, state.result, state}
+    do: {:reply, state.result, state}
 
   def handle_call(request, from, state) do
     IO.puts("handle_call(#{inspect(request)}, #{inspect(from)}, #{inspect(state)})")
@@ -121,7 +113,10 @@ defmodule Mailroom.TestServer do
   end
 
   def start(opts \\ []) do
-    case Supervisor.start_child(Mailroom.TestServer.Supervisor, [opts]) do
+    case DynamicSupervisor.start_child(
+           Mailroom.TestServer.Supervisor,
+           {Mailroom.TestServer, opts}
+         ) do
       {:ok, pid} ->
         {address, port} = call(pid, :setup)
 
