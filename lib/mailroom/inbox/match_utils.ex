@@ -110,6 +110,10 @@ defmodule Mailroom.Inbox.MatchUtils do
     }
   end
 
+  def generate_mail_info(%{envelope: :error}) do
+    :error
+  end
+
   defp get_email_addresses(list) do
     Enum.map(List.wrap(list), &String.downcase(&1.email))
   end

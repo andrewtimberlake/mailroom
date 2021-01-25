@@ -194,35 +194,41 @@ defmodule Mailroom.Inbox do
 
           Mailroom.IMAP.search(client, "UNSEEN", unquote(fetch_items_required), fn {msg_id,
                                                                                     response} ->
-            mail_info = generate_mail_info(response)
-
-            try do
-              case perform_match(client, msg_id, mail_info, assigns) do
-                :delete ->
-                  Mailroom.IMAP.add_flags(client, msg_id, [:deleted])
-
-                :ignore ->
-                  Mailroom.IMAP.add_flags(client, msg_id, [:deleted])
-
-                :seen ->
-                  Mailroom.IMAP.add_flags(client, msg_id, [:seen])
-
-                other ->
-                  Logger.warn("Unexpected process response #{inspect(other)}")
-                  Mailroom.IMAP.add_flags(client, msg_id, [:seen])
-              end
-            catch
-              kind, reason ->
-                stack = System.stacktrace()
-
+            case generate_mail_info(response) do
+              :error ->
                 Logger.error(fn ->
-                  "Error processing #{inspect(mail_info)} -> #{inspect(kind)}, #{inspect(reason)}, #{
-                    Exception.format_stacktrace(stack)
-                  }"
+                  "Unable to process envelope #{inspect(response)}"
                 end)
 
                 Mailroom.IMAP.add_flags(client, msg_id, [:seen])
-                # :erlang.raise(kind, reason, stack)
+
+              mail_info ->
+                try do
+                  case perform_match(client, msg_id, mail_info, assigns) do
+                    :delete ->
+                      Mailroom.IMAP.add_flags(client, msg_id, [:deleted])
+
+                    :ignore ->
+                      Mailroom.IMAP.add_flags(client, msg_id, [:deleted])
+
+                    :seen ->
+                      Mailroom.IMAP.add_flags(client, msg_id, [:seen])
+
+                    other ->
+                      Logger.warn("Unexpected process response #{inspect(other)}")
+                      Mailroom.IMAP.add_flags(client, msg_id, [:seen])
+                  end
+                catch
+                  kind, reason ->
+                    Logger.error(fn ->
+                      "Error processing #{inspect(mail_info)} -> #{inspect(kind)}, #{
+                        inspect(reason)
+                      }, #{Exception.format_stacktrace()}"
+                    end)
+
+                    Mailroom.IMAP.add_flags(client, msg_id, [:seen])
+                    # :erlang.raise(kind, reason, stack)
+                end
             end
           end)
 
