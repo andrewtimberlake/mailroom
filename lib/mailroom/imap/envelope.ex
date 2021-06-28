@@ -39,23 +39,7 @@ defmodule Mailroom.IMAP.Envelope do
   def new(list) do
     [date, subject, from, sender, reply_to, to, cc, bcc, in_reply_to, message_id] = list
 
-    # This fixes dates with an incorrect case in the wild
-    date =
-      date
-      |> String.replace(~r/jan/i, "Jan")
-      |> String.replace(~r/feb/i, "Feb")
-      |> String.replace(~r/mar/i, "Mar")
-      |> String.replace(~r/apr/i, "Apr")
-      |> String.replace(~r/may/i, "May")
-      |> String.replace(~r/jun/i, "Jun")
-      |> String.replace(~r/jul/i, "Jul")
-      |> String.replace(~r/aug/i, "Aug")
-      |> String.replace(~r/sep/i, "Sep")
-      |> String.replace(~r/oct/i, "Oct")
-      |> String.replace(~r/nov/i, "Nov")
-      |> String.replace(~r/dec/i, "Dec")
-      |> Mail.Parsers.RFC2822.erl_from_timestamp()
-
+    date = Mail.Parsers.RFC2822.erl_from_timestamp(date)
     from = parse_addresses(from)
     sender = parse_addresses(sender)
     reply_to = parse_addresses(reply_to)
