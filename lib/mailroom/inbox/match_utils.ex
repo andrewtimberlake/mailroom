@@ -90,8 +90,13 @@ defmodule Mailroom.Inbox.MatchUtils do
     headers =
       case response do
         %{"BODY[HEADER]" => headers} ->
-          %{headers: headers} = Mail.Parsers.RFC2822.parse(headers <> "\r\n")
-          headers
+          try do
+            %{headers: headers} = Mail.Parsers.RFC2822.parse(headers <> "\r\n")
+            headers
+          rescue
+            _ ->
+              %{}
+          end
 
         _ ->
           %{}

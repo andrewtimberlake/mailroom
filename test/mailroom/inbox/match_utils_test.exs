@@ -209,4 +209,32 @@ defmodule Mailroom.Inbox.MatchUtilsTest do
              subject: "Test subject"
            } = generate_mail_info(%{envelope: envelope, body_structure: body_structure})
   end
+
+  test "generate_match_info/1 with invalid data" do
+    envelope =
+      Envelope.new([
+        "Wed, 26 Oct 2016 14:23:14 +0200",
+        "Test subject",
+        [["John Doe", nil, "john", "example.com"]],
+        [["John Doe", nil, "JOHN", "EXAMPLE.COM"]],
+        [["John Doe", nil, "reply", "example.com"]],
+        [[nil, nil, "dev", "debtflow.co.za"]],
+        nil,
+        nil,
+        nil,
+        "<B042B704-E13E-44A2-8FEC-67A43B6DD6DB@example.com>"
+      ])
+
+    headers = "wrong"
+
+    assert %{
+             to: ["dev@debtflow.co.za"],
+             cc: [],
+             bcc: [],
+             from: ["john@example.com"],
+             reply_to: ["reply@example.com"],
+             subject: "Test subject",
+             headers: %{}
+           } = generate_mail_info(%{:envelope => envelope, "BODY[HEADER]" => headers})
+  end
 end
