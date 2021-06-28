@@ -23,15 +23,17 @@ end)
 
 If [available in Hex](https://hex.pm/docs/publish), the package can be installed as:
 
-  1. Add `mailroom` to your list of dependencies in `mix.exs`:
+1. Add `mailroom` to your list of dependencies in `mix.exs`:
+
 
     ```elixir
     def deps do
-      [{:mailroom, "~> 0.0.1"}]
+      [{:mailroom, "~> 0.2.5"}]
     end
     ```
 
-  2. Ensure `mailroom` is started before your application:
+2. Ensure `mailroom` is started before your application:
+
 
     ```elixir
     def application do
