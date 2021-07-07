@@ -84,6 +84,66 @@ defmodule Mailroom.SMTPTest do
     SMTP.quit(client)
   end
 
+  test "send mail with Mail module" do
+    email =
+      Mail.build()
+      |> Mail.put_from("me@example.com")
+      |> Mail.put_to(["you@example.com", "you2@example.com"])
+      |> Mail.put_cc(["them@example.com"])
+      |> Mail.put_subject("Test message")
+      |> Mail.put_text("This is a test message")
+
+    msg = Mail.Renderers.RFC2822.render(email)
+    lines = String.split(msg, "\r\n") |> Enum.map(&(&1 <> "\r\n"))
+
+    server = TestServer.start()
+
+    TestServer.expect(server, fn expectations ->
+      expectations
+      |> TestServer.on(
+        :connect,
+        "220 myserver.com.\r\n"
+      )
+      |> TestServer.on(
+        "EHLO #{SMTP.fqdn()}\r\n",
+        "250-myserver.com\r\n250-SIZE\r\n250 HELP\r\n"
+      )
+      |> TestServer.on(
+        "MAIL FROM: <me@example.com>\r\n",
+        "250 OK\r\n"
+      )
+      |> TestServer.on(
+        "RCPT TO: <you@example.com>\r\n",
+        "250 OK\r\n"
+      )
+      |> TestServer.on(
+        "RCPT TO: <you2@example.com>\r\n",
+        "250 OK\r\n"
+      )
+      |> TestServer.on(
+        "RCPT TO: <them@example.com>\r\n",
+        "250 OK\r\n"
+      )
+      |> TestServer.on(
+        "DATA\r\n",
+        "354 Send message content; end with <CRLF>.<CRLF>\r\n"
+      )
+      |> TestServer.on(
+        lines ++ [".\r\n"],
+        "250 OK\r\n"
+      )
+      |> TestServer.on(
+        "QUIT\r\n",
+        "221 Bye\r\n"
+      )
+    end)
+
+    {:ok, client} = SMTP.connect(server.address, port: server.port)
+
+    :ok = SMTP.send(email, client)
+    SMTP.quit(client)
+  end
+
   test "SMTP with TLS" do
     server = TestServer.start()
 

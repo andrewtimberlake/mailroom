@@ -4,6 +4,7 @@ Send, receive and process emails.
 
 ## Example:
 
+### POP3
 ```elixir
 alias Mailroom.POP3
 
@@ -17,6 +18,31 @@ client
 end)
 :ok = POP3.reset(client)
 :ok = POP3.close(client)
+```
+
+### SMTP
+```elixir
+  alias Mailroom.SMTP
+  
+  def config, do:
+    [
+      username: System.get_env("EMAIL_USER"),
+      password: System.get_env("EMAIL_PASS"),
+      port: 587
+    ]
+  
+  def test_email() do
+    {:ok, client} = SMTP.connect("smtp.example.com", config()) 
+
+    Mail.build()
+    |> Mail.put_from("user1@example.com")
+    |> Mail.put_to(["user2@example.com", "user3@example.com"])
+    |> Mail.put_subject("This is only a test")
+    |> Mail.put_text("Write your message here!!!")
+    |> SMTP.send(client)
+
+    SMTP.quit(client)
+  end
 ```
 
 ## Installation
