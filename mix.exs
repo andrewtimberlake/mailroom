@@ -9,7 +9,7 @@ defmodule Mailroom.Mixfile do
       app: :mailroom,
       name: "Mailroom",
       version: @version,
-      elixir: "~> 1.4",
+      elixir: "~> 1.6",
       elixirc_paths: elixirc_paths(Mix.env()),
       build_embedded: Mix.env() == :prod,
       start_permanent: Mix.env() == :prod,
