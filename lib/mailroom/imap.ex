@@ -494,14 +494,7 @@ defmodule Mailroom.IMAP do
         {:noreply, %{state | exists: state.exists - 1}}
 
       [number, "FETCH", rest] ->
-        data =
-          case Regex.run(~r/(.+ {(\d+)}\r\n)$/, rest) do
-            [_, initial, bytes] ->
-              fetch_all_data(String.to_integer(bytes), 0, [initial], state)
-
-            _ ->
-              rest
-          end
+        data = process_fetch_data(rest, state)
 
         {:noreply,
          %{state | temp: [{String.to_integer(number), parse_fetch_response(data)} | state.temp]}}
@@ -521,6 +514,17 @@ defmodule Mailroom.IMAP do
   defp handle_response(msg, state) do
     Logger.warn("handle_response(socket, #{inspect(msg)}, #{inspect(state)})")
     {:noreply, state}
+  end
+
+  defp process_fetch_data(data, state) do
+    case Regex.run(~r/\A(.+ {(\d+)}\r\n)\z/sm, data) do
+      [_, initial, bytes] ->
+        data = fetch_all_data(String.to_integer(bytes), 0, [initial], state)
+        process_fetch_data(data, state)
+
+      _ ->
+        data
+    end
   end
 
   defp handle_exists(number, %{socket: socket, idle_caller: caller, idle_timer: timer} = state) do
