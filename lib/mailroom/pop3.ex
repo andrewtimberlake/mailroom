@@ -7,9 +7,9 @@ defmodule Mailroom.POP3 do
       {:ok, socket} = #{inspect(__MODULE__)}.connect("pop3.server", "username", "password")
       socket
       |> #{inspect(__MODULE__)}.list
-      |> Enum.each(fn(mail)) ->
+      |> Enum.each(fn(mail) ->
         message =
-          client
+          socket
           |> #{inspect(__MODULE__)}.retrieve(mail)
           |> Enum.join("\\n")
         # … process message

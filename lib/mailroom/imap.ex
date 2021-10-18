@@ -37,7 +37,7 @@ defmodule Mailroom.IMAP do
       {:ok, client} = #{inspect(__MODULE__)}.connect("imap.server", "username", "password")
       client
       |> #{inspect(__MODULE__)}.list
-      |> Enum.each(fn(mail)) ->
+      |> Enum.each(fn(mail) ->
         message =
           client
           |> #{inspect(__MODULE__)}.retrieve(mail)
