@@ -143,6 +143,14 @@ defmodule Mailroom.IMAP do
     end
   end
 
+  def uid_fetch(pid, number_or_range, items_list, opts \\ []) do
+    GenServer.call(
+      pid,
+      {:uid_fetch, number_or_range, items_list},
+      Keyword.get(opts, :timeout, 300_000)
+    )
+  end
+
   def search(pid, query, items_list \\ nil, func \\ nil) do
     {:ok, list} = GenServer.call(pid, {:search, query}, 60_000)
 
@@ -306,6 +314,14 @@ defmodule Mailroom.IMAP do
   def handle_call({:fetch, sequence, items}, from, state) do
     {:noreply,
      send_command(from, ["FETCH", " ", to_sequence(sequence), " ", items_to_list(items)], %{
+       state
+       | temp: []
+     })}
+  end
+
+  def handle_call({:uid_fetch, sequence, items}, from, state) do
+    {:noreply,
+     send_command(from, ["UID FETCH", " ", to_sequence(sequence), " ", items_to_list(items)], %{
        state
        | temp: []
      })}
@@ -704,6 +720,14 @@ defmodule Mailroom.IMAP do
   defp process_command_response(
          cmd_tag,
          %{command: "FETCH", caller: caller},
+         _msg,
+         %{temp: temp} = state
+       ),
+       do: send_reply(caller, Enum.reverse(temp), remove_command_from_state(state, cmd_tag))
+
+  defp process_command_response(
+         cmd_tag,
+         %{command: "UID FETCH", caller: caller},
          _msg,
          %{temp: temp} = state
        ),
