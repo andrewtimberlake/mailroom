@@ -160,6 +160,10 @@ defmodule Mailroom.IMAP do
     end
   end
 
+  def uid_search(pid, query) do
+    GenServer.call(pid, {:uid_search, query}, 60_000)
+  end
+
   def each(pid, items_list \\ [:envelope], func) do
     pid
     |> email_count
@@ -309,6 +313,9 @@ defmodule Mailroom.IMAP do
 
   def handle_call({:search, query}, from, state),
     do: {:noreply, send_command(from, ["SEARCH", " ", query], %{state | temp: []})}
+
+  def handle_call({:uid_search, query}, from, state),
+    do: {:noreply, send_command(from, ["UID SEARCH", " ", query], %{state | temp: []})}
 
   [remove_flags: "-FLAGS", add_flags: "+FLAGS", set_flags: "FLAGS"]
   |> Enum.each(fn {func_name, command} ->
@@ -705,6 +712,14 @@ defmodule Mailroom.IMAP do
   defp process_command_response(
          cmd_tag,
          %{command: "SEARCH", caller: caller},
+         _msg,
+         %{temp: temp} = state
+       ),
+       do: send_reply(caller, temp, remove_command_from_state(state, cmd_tag))
+
+  defp process_command_response(
+         cmd_tag,
+         %{command: "UID SEARCH", caller: caller},
          _msg,
          %{temp: temp} = state
        ),
