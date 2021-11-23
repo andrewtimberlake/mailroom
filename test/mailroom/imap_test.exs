@@ -1112,6 +1112,7 @@ defmodule Mailroom.IMAPTest do
                   bcc: [],
                   cc: [],
                   date: {{2019, 6, 27}, {12, 0, 1}},
+                  date_string: "Thu, 27 Jun 2019 12:00:01 +0200",
                   from: [
                     %Mailroom.IMAP.Envelope.Address{
                       email: "john@example.com",
@@ -1200,6 +1201,7 @@ defmodule Mailroom.IMAPTest do
                   bcc: [],
                   cc: [],
                   date: {{2019, 6, 27}, {12, 0, 1}},
+                  date_string: "Thu, 27 Jun 2019 12:00:01 +0200",
                   from: [
                     %Mailroom.IMAP.Envelope.Address{
                       email: "john@example.com",
