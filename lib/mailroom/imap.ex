@@ -433,7 +433,7 @@ defmodule Mailroom.IMAP do
 
   def handle_info({:ssl_closed, _}, state) do
     Logger.warn("SSL closed")
-    {:stop, :ssl_closed, state}
+    {:stop, {:shutdown, :ssl_closed}, state}
   end
 
   defp cancel_idle(socket, timer) do
