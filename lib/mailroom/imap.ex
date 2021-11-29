@@ -109,7 +109,7 @@ defmodule Mailroom.IMAP do
     do: GenServer.call(pid, {:select, mailbox_name}) && pid
 
   def examine(pid, mailbox_name),
-    do: GenServer.call(pid, {:examine, mailbox_name})
+    do: GenServer.call(pid, {:examine, mailbox_name}) && pid
 
   def list(pid, reference \\ "", mailbox_name \\ "*"),
     do: GenServer.call(pid, {:list, reference, mailbox_name})
