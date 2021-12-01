@@ -340,6 +340,46 @@ defmodule Mailroom.IMAPTest do
     IMAP.logout(client)
   end
 
+  test "UID FETCH single message" do
+    server = TestServer.start(ssl: true)
+
+    TestServer.expect(server, fn expectations ->
+      expectations
+      |> TestServer.tagged(:connect, "* OK IMAP ready\r\n")
+      |> TestServer.tagged("LOGIN \"test@example.com\" \"P@55w0rD\"\r\n", [
+        "* CAPABILITY (IMAPrev4)\r\n",
+        "OK test@example.com authenticated (Success)\r\n"
+      ])
+      |> TestServer.tagged("SELECT INBOX\r\n", [
+        "* FLAGS (\\Flagged \\Draft \\Deleted \\Seen)\r\n",
+        "* OK [PERMANENTFLAGS (\\Flagged \\Draft \\Deleted \\Seen \\*)] Flags permitted\r\n",
+        "* 2 EXISTS\r\n",
+        "* 1 RECENT\r\n",
+        "OK [READ-WRITE] INBOX selected. (Success)\r\n"
+      ])
+      |> TestServer.tagged("UID FETCH 1 (UID)\r\n", ["* 1 FETCH (UID 46)\r\n", "OK Success\r\n"])
+      |> TestServer.tagged("LOGOUT\r\n", [
+        "* BYE We're out of here\r\n",
+        "OK Logged out\r\n"
+      ])
+    end)
+
+    assert {:ok, client} =
+             IMAP.connect(server.address, "test@example.com", "P@55w0rD",
+               port: server.port,
+               ssl: true,
+               debug: @debug
+             )
+
+    {:ok, msgs} =
+      client
+      |> IMAP.select(:inbox)
+      |> IMAP.uid_fetch(1, :uid)
+
+    assert msgs == [{1, %{uid: 46}}]
+    IMAP.logout(client)
+  end
+
   test "SEARCH" do
     server = TestServer.start(ssl: true)
 
