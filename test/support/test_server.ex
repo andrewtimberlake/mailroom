@@ -105,7 +105,7 @@ defmodule Mailroom.TestServer do
         | @tcp_opts
       ]
 
-      {:ok, socket} = :ssl.handshake(socket, opts, 1_000)
+      {:ok, socket} = :ssl.ssl_accept(socket, opts, 1_000)
       socket
     else
       socket
@@ -206,7 +206,7 @@ defmodule Mailroom.TestServer do
 
   defp accept_connection({:sslsocket, _, _} = socket) do
     {:ok, socket} = :ssl.transport_accept(socket)
-    {:ok, _} = :ssl.handshake(socket, 1_000)
+    :ok = :ssl.ssl_accept(socket, 1_000)
     {:ok, socket}
   end
 
