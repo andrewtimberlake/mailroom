@@ -336,11 +336,18 @@ defmodule Mailroom.IMAP do
   [remove_flags: "-FLAGS", add_flags: "+FLAGS", set_flags: "FLAGS"]
   |> Enum.each(fn {func_name, command} ->
     def handle_call({unquote(func_name), sequence, flags, opts}, from, state) do
+      root_command =
+        if opts[:uid] do
+          "UID STORE"
+        else
+          "STORE"
+        end
+
       {:noreply,
        send_command(
          from,
          [
-           "STORE",
+           root_command,
            " ",
            to_sequence(sequence),
            " ",
@@ -752,6 +759,14 @@ defmodule Mailroom.IMAP do
   defp process_command_response(
          cmd_tag,
          %{command: "STORE", caller: caller},
+         _msg,
+         %{temp: temp} = state
+       ),
+       do: send_reply(caller, Enum.reverse(temp), remove_command_from_state(state, cmd_tag))
+
+  defp process_command_response(
+         cmd_tag,
+         %{command: "UID STORE", caller: caller},
          _msg,
          %{temp: temp} = state
        ),
