@@ -660,6 +660,7 @@ defmodule Mailroom.IMAPTest do
               %{
                 envelope: %Envelope{
                   date: {{2016, 10, 26}, {14, 23, 14}},
+                  date_string: "Wed, 26 Oct 2016 14:23:14 +0200",
                   subject: "Test 1",
                   from: [
                     %{
@@ -703,6 +704,7 @@ defmodule Mailroom.IMAPTest do
               %{
                 envelope: %Envelope{
                   date: {{2016, 10, 26}, {14, 24, 15}},
+                  date_string: "Wed, 26 Oct 2016 14:24:15 +0200",
                   subject: "Test 2",
                   from: [
                     %{
