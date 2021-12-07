@@ -17,7 +17,7 @@ defmodule Mailroom.Socket do
   @timeout 15_000
 
   @type t :: %__MODULE__{}
-  defstruct socket: nil, ssl: false, timeout: @timeout, debug: false
+  defstruct socket: nil, ssl: false, timeout: @timeout, debug: false, connect_opts: []
 
   @doc """
   Connect to a TCP `server` on `port`
@@ -43,7 +43,7 @@ defmodule Mailroom.Socket do
     addr = String.to_charlist(server)
 
     case do_connect(addr, state.ssl, port, [:binary | connect_opts], state.timeout) do
-      {:ok, socket} -> {:ok, %{state | socket: socket}}
+      {:ok, socket} -> {:ok, %{state | socket: socket, connect_opts: connect_opts}}
       {:error, reason} -> {:error, to_string(reason)}
     end
   end
@@ -120,8 +120,8 @@ defmodule Mailroom.Socket do
   def ssl_client(%{socket: socket, ssl: true}),
     do: socket
 
-  def ssl_client(%{socket: socket, timeout: timeout} = client) do
-    case :ssl.connect(socket, @connect_opts ++ @ssl_connect_opts, timeout) do
+  def ssl_client(%{socket: socket, timeout: timeout, connect_opts: connect_opts} = client) do
+    case :ssl.connect(socket, @ssl_connect_opts ++ connect_opts, timeout) do
       {:ok, socket} -> {:ok, %{client | socket: socket, ssl: true}}
       {:error, {key, reason}} -> {:error, {key, to_string(reason)}}
       {:error, reason} -> {:error, to_string(reason)}
