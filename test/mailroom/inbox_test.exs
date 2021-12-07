@@ -534,9 +534,7 @@ defmodule Mailroom.InboxTest do
         "OK Success\r\n"
       ])
       |> TestServer.tagged("FETCH 1 (ENVELOPE BODY.PEEK[HEADER])\r\n", [
-        ~s[* 1 FETCH (ENVELOPE ("Mon, 27 Jul 2020 11:57:36 +0200" "Test with header" (("Andrew Timberlake" NIL "andrew" "internuity.net")) (("Andrew Timberlake" NIL "andrew" "internuity.net")) (("Andrew Timberlake" NIL "andrew" "internuity.net")) ((NIL NIL "reply" "example.com")) NIL NIL "<f69b912d-310b-4133-b526-07f715242db6@Spark>" "<4cff0831-67f5-4457-b60a-3331ba893348@Spark>") BODY\[HEADER\] {#{
-          byte_size(headers)
-        }}\r\n#{headers})\r\n],
+        ~s[* 1 FETCH (ENVELOPE ("Mon, 27 Jul 2020 11:57:36 +0200" "Test with header" (("Andrew Timberlake" NIL "andrew" "internuity.net")) (("Andrew Timberlake" NIL "andrew" "internuity.net")) (("Andrew Timberlake" NIL "andrew" "internuity.net")) ((NIL NIL "reply" "example.com")) NIL NIL "<f69b912d-310b-4133-b526-07f715242db6@Spark>" "<4cff0831-67f5-4457-b60a-3331ba893348@Spark>") BODY\[HEADER\] {#{byte_size(headers)}}\r\n#{headers})\r\n],
         "OK Success\r\n"
       ])
       |> TestServer.tagged("STORE 1 +FLAGS (\\Deleted)\r\n", [

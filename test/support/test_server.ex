@@ -109,7 +109,7 @@ defmodule Mailroom.TestServer do
         if function_exported?(:ssl, :handshake, 3) do
           :ssl.handshake(socket, opts, 1_000)
         else
-          :ssl.ssl_accept(socket, opts, 1000)
+          :ssl.ssl_accept(socket, opts, 1_000)
         end
 
       socket

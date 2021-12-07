@@ -221,9 +221,7 @@ defmodule Mailroom.Inbox do
                 catch
                   kind, reason ->
                     Logger.error(fn ->
-                      "Error processing #{inspect(mail_info)} -> #{inspect(kind)}, #{
-                        inspect(reason)
-                      }, #{Exception.format_stacktrace()}"
+                      "Error processing #{inspect(mail_info)} -> #{inspect(kind)}, #{inspect(reason)}, #{Exception.format_stacktrace()}"
                     end)
 
                     Mailroom.IMAP.add_flags(client, msg_id, [:seen])
@@ -284,9 +282,7 @@ defmodule Mailroom.Inbox do
         Logger.info(fn ->
           %{to: to, from: from, subject: subject} = mail_info
 
-          "Processing msg:#{msg_id} TO:#{log_email(to)} FROM:#{log_email(from)} SUBJECT:#{
-            inspect(subject)
-          }#{log_mod_fun(mod_fun)} -> #{inspect(result)}"
+          "Processing msg:#{msg_id} TO:#{log_email(to)} FROM:#{log_email(from)} SUBJECT:#{inspect(subject)}#{log_mod_fun(mod_fun)} -> #{inspect(result)}"
         end)
 
         result
