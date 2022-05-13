@@ -44,7 +44,7 @@ defmodule Mailroom.Socket do
 
     case do_connect(addr, state.ssl, port, [:binary | connect_opts], state.timeout) do
       {:ok, socket} -> {:ok, %{state | socket: socket, connect_opts: connect_opts}}
-      {:error, reason} -> {:error, to_string(reason)}
+      {:error, reason} -> {:error, inspect(reason)}
     end
   end
 
@@ -81,7 +81,7 @@ defmodule Mailroom.Socket do
         {:ok, String.replace_suffix(line, "\r\n", "")}
 
       {:error, reason} ->
-        {:error, to_string(reason)}
+        {:error, inspect(reason)}
     end
   end
 
@@ -107,7 +107,7 @@ defmodule Mailroom.Socket do
 
     case do_send(socket, data) do
       :ok -> :ok
-      {:error, reason} -> {:error, to_string(reason)}
+      {:error, reason} -> {:error, inspect(reason)}
     end
   end
 
@@ -123,8 +123,8 @@ defmodule Mailroom.Socket do
   def ssl_client(%{socket: socket, timeout: timeout, connect_opts: connect_opts} = client) do
     case :ssl.connect(socket, @ssl_connect_opts ++ connect_opts, timeout) do
       {:ok, socket} -> {:ok, %{client | socket: socket, ssl: true}}
-      {:error, {key, reason}} -> {:error, {key, to_string(reason)}}
-      {:error, reason} -> {:error, to_string(reason)}
+      {:error, {key, reason}} -> {:error, {key, inspect(reason)}}
+      {:error, reason} -> {:error, inspect(reason)}
     end
   end
 
