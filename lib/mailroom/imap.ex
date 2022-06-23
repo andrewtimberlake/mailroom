@@ -4,9 +4,37 @@ defmodule Mailroom.IMAP do
 
   import Mailroom.IMAP.Utils
   alias Mailroom.IMAP.{Envelope, BodyStructure}
+  alias Mailroom.Socket
 
   defmodule State do
     @moduledoc false
+
+    @type mailbox :: {String.t() | atom, :r | :rw}
+    @type connection :: :unauthenticated | :authenticated | :logged_out | :selected
+
+    @type t :: %__MODULE__{
+            socket: Socket.t() | nil,
+            state: connection,
+            ssl: boolean,
+            debug: boolean,
+            cmd_map: map,
+            cmd_number: non_neg_integer,
+            capability: [String.t()] | nil,
+            flags: iolist,
+            permanent_flags: iolist,
+            uid_validity: non_neg_integer | nil,
+            uid_next: non_neg_integer | nil,
+            unseen: non_neg_integer,
+            highest_mod_seq: non_neg_integer | nil,
+            recent: integer,
+            exists: integer,
+            temp: any,
+            mailbox: mailbox | nil,
+            idle_caller: GenServer.from() | nil,
+            idle_reply_msg: any,
+            idle_timer: reference | nil
+          }
+
     defstruct socket: nil,
               state: :unauthenticated,
               ssl: false,
@@ -48,8 +76,6 @@ defmodule Mailroom.IMAP do
       #{inspect(__MODULE__)}.reset(client)
       #{inspect(__MODULE__)}.close(client)
   """
-
-  alias Mailroom.Socket
 
   @doc """
   Connect to the IMAP server
