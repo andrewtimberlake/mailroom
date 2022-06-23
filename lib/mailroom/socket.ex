@@ -101,7 +101,7 @@ defmodule Mailroom.Socket do
 
       :ok = #{inspect(__MODULE__)}.send(socket)
   """
-  @spec send(t, String.t()) :: :ok | {:error, String.t()}
+  @spec send(t, iodata) :: :ok | {:error, String.t()}
   def send(%{debug: debug, ssl: ssl} = socket, data) do
     if debug, do: IO.write(["< ", tag_debug(ssl), data])
 
