@@ -1,9 +1,15 @@
 defmodule Mailroom.IMAP.Envelope do
-  defstruct ~w[date date_string subject from sender reply_to to cc bcc in_reply_to message_id]a
-
   defmodule Address do
+    @type t :: %__MODULE__{
+            name: String.t() | nil,
+            mailbox_name: String.t() | nil,
+            host_name: String.t() | nil,
+            email: String.t()
+          }
+
     defstruct ~w[name mailbox_name host_name email]a
 
+    @spec new(String.t() | nil, String.t() | nil, String.t() | nil) :: t
     def new(name, mailbox_name, host_name) do
       %__MODULE__{
         name: name,
@@ -13,12 +19,14 @@ defmodule Mailroom.IMAP.Envelope do
       }
     end
 
+    @spec join_email(String.t() | nil, String.t() | nil) :: String.t()
     defp join_email(mailbox_name, host_name) do
       [mailbox_name, host_name]
       |> Enum.filter(& &1)
       |> Enum.join("@")
     end
 
+    @spec normalize(t | [t] | nil) :: t | [t] | nil
     def normalize(nil), do: nil
     def normalize([]), do: []
 
@@ -29,13 +37,31 @@ defmodule Mailroom.IMAP.Envelope do
 
     def normalize([address | tail]), do: [normalize(address) | normalize(tail)]
 
+    @spec downcase(String.t() | nil) :: String.t() | nil
     defp downcase(nil), do: nil
     defp downcase(string), do: String.downcase(string)
   end
 
+  @type t :: %__MODULE__{
+          date: :calendar.datetime(),
+          date_string: String.t(),
+          subject: any,
+          from: [Address.t()],
+          sender: [Address.t()],
+          reply_to: [Address.t()],
+          to: [Address.t()],
+          cc: [Address.t()],
+          bcc: [Address.t()],
+          in_reply_to: String.t() | nil,
+          message_id: String.t() | nil
+        }
+
+  defstruct ~w[date date_string subject from sender reply_to to cc bcc in_reply_to message_id]a
+
   @doc ~S"""
   Generates an `Envelope` struct from the IMAP ENVELOPE list
   """
+  @spec new(iolist) :: t
   def new(list) do
     [date, subject, from, sender, reply_to, to, cc, bcc, in_reply_to, message_id] = list
 
@@ -62,6 +88,7 @@ defmodule Mailroom.IMAP.Envelope do
     }
   end
 
+  @spec normalize(t) :: t
   def normalize(%__MODULE__{} = envelope) do
     %{
       from: from,
@@ -87,9 +114,11 @@ defmodule Mailroom.IMAP.Envelope do
     }
   end
 
+  @spec downcase(String.t() | nil) :: String.t() | nil
   defp downcase(nil), do: nil
   defp downcase(string), do: String.downcase(string)
 
+  @spec parse_addresses([String.t()] | nil) :: [Address.t()]
   defp parse_addresses(nil), do: []
   defp parse_addresses([]), do: []
 
