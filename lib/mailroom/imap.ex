@@ -3,7 +3,7 @@ defmodule Mailroom.IMAP do
   use GenServer
 
   import Mailroom.IMAP.Utils
-  alias Mailroom.IMAP.{Envelope, BodyStructure}
+  alias Mailroom.IMAP.{BodyStructure, Envelope, Utils}
   alias Mailroom.Socket
 
   defmodule State do
@@ -77,6 +77,27 @@ defmodule Mailroom.IMAP do
       #{inspect(__MODULE__)}.close(client)
   """
 
+  @type srv :: GenServer.server()
+
+  @type list_opts :: [ssl: boolean, port: non_neg_integer, debug: boolean]
+  @type map_opts :: %{ssl: boolean, port: non_neg_integer | nil, debug: boolean}
+
+  @type item_or_items :: Utils.item() | [Utils.item()]
+
+  @type cmd_tag :: <<_::32>>
+  @type cmd_map :: %{command: String.t(), caller: GenServer.from() | nil}
+
+  @type id_or_range :: non_neg_integer :: Range.t()
+
+  @type fetch_result :: %{
+          optional(:internal_date) => :calendar.datetime(),
+          optional(:uid) => non_neg_integer,
+          optional(:envelope) => Envelope.t(),
+          optional(:body_structure) => BodyStructure.Part.t(),
+          optional(Utils.item()) => :error,
+          optional(Utils.item()) => String.t()
+        }
+
   @doc """
   Connect to the IMAP server
 
@@ -91,6 +112,8 @@ defmodule Mailroom.IMAP do
       #{inspect(__MODULE__)}.connect("imap.server", "me", "secret", ssl: true)
       {:ok, pid}
   """
+  @spec connect(String.t(), String.t(), String.t(), list_opts) ::
+          {:ok, pid} | {:error, :authentication, any}
   def connect(server, username, password, options \\ []) do
     opts = parse_opts(options)
     {:ok, pid} = GenServer.start_link(__MODULE__, opts)
@@ -102,6 +125,7 @@ defmodule Mailroom.IMAP do
     end
   end
 
+  @spec parse_opts(list_opts) :: map_opts
   defp parse_opts(opts, acc \\ %{ssl: false, port: nil, debug: false})
 
   defp parse_opts([], acc),
@@ -119,6 +143,7 @@ defmodule Mailroom.IMAP do
   defp parse_opts([_ | tail], acc),
     do: parse_opts(tail, acc)
 
+  @spec set_default_port(map_opts) :: map_opts
   defp set_default_port(%{port: nil, ssl: false} = opts),
     do: %{opts | port: 143}
 
@@ -128,18 +153,26 @@ defmodule Mailroom.IMAP do
   defp set_default_port(opts),
     do: opts
 
+  @spec login(srv, String.t(), String.t()) :: {:ok, String.t()}
   defp login(pid, username, password),
     do: GenServer.call(pid, {:login, username, password})
 
+  @spec select(srv, String.t() | :inbox) :: srv
   def select(pid, mailbox_name),
     do: GenServer.call(pid, {:select, mailbox_name}) && pid
 
+  @spec examine(srv, String.t() | :inbox) :: srv
   def examine(pid, mailbox_name),
     do: GenServer.call(pid, {:examine, mailbox_name}) && pid
 
+  @type entry :: {name :: String.t(), delimiter :: String.t(), flags :: [String.t()]}
+
+  @spec list(srv, String.t(), String.t()) :: [entry]
   def list(pid, reference \\ "", mailbox_name \\ "*"),
     do: GenServer.call(pid, {:list, reference, mailbox_name})
 
+  @spec status(srv, String.t(), item_or_items) ::
+          {:ok, Utils.item_map(non_neg_integer)}
   def status(pid, mailbox_name, items),
     do: GenServer.call(pid, {:status, mailbox_name, items})
 
@@ -153,6 +186,11 @@ defmodule Mailroom.IMAP do
       > IMAP.fetch(client, 1..3, [:fast, :uid])
       #…
   """
+  @type fetch_entry :: {non_neg_integer, fetch_result}
+  @type fetch_opts :: [timeout: non_neg_integer]
+  @spec fetch(srv, id_or_range, item_or_items) :: {:ok, [fetch_entry]}
+  @spec fetch(srv, id_or_range, item_or_items, nil, fetch_opts) :: {:ok, [fetch_entry]}
+  @spec fetch(srv, id_or_range, item_or_items, (fetch_entry -> any), fetch_opts) :: srv
   def fetch(pid, number_or_range, items_list, func \\ nil, opts \\ []) do
     {:ok, list} =
       GenServer.call(
@@ -169,6 +207,7 @@ defmodule Mailroom.IMAP do
     end
   end
 
+  @spec uid_fetch(srv, id_or_range, item_or_items, fetch_opts) :: {:ok, [fetch_entry]}
   def uid_fetch(pid, number_or_range, items_list, opts \\ []) do
     GenServer.call(
       pid,
@@ -177,6 +216,9 @@ defmodule Mailroom.IMAP do
     )
   end
 
+  @spec search(srv, iodata) :: {:ok, [non_neg_integer]}
+  @spec search(srv, iodata, item_or_items, nil) :: {:ok, [non_neg_integer]}
+  @spec search(srv, iodata, item_or_items, (fetch_entry -> any)) :: srv
   def search(pid, query, items_list \\ nil, func \\ nil) do
     {:ok, list} = GenServer.call(pid, {:search, query}, 60_000)
 
@@ -194,10 +236,13 @@ defmodule Mailroom.IMAP do
     end
   end
 
+  @spec uid_search(srv, iodata) :: srv
   def uid_search(pid, query) do
     GenServer.call(pid, {:uid_search, query}, 60_000)
   end
 
+  @spec each(srv, (fetch_entry -> any)) :: srv
+  @spec each(srv, item_or_items, (fetch_entry -> any)) :: srv
   def each(pid, items_list \\ [:envelope], func) do
     pid
     |> email_count
@@ -211,6 +256,7 @@ defmodule Mailroom.IMAP do
     pid
   end
 
+  @spec split_into_ranges(non_neg_integer, non_neg_integer) :: [Range.t()]
   defp split_into_ranges(0, _chunks), do: []
   defp split_into_ranges(length, chunks, start \\ 0)
 
@@ -222,18 +268,26 @@ defmodule Mailroom.IMAP do
     [(start + 1)..length]
   end
 
+  @spec remove_flags(srv, non_neg_integer | Range.t(), item_or_items) :: srv
+  @spec remove_flags(srv, non_neg_integer | Range.t(), item_or_items, silent: true) :: srv
   def remove_flags(pid, number_or_range, flags, opts \\ []),
     do: GenServer.call(pid, {:remove_flags, number_or_range, flags, opts}) && pid
 
+  @spec add_flags(srv, non_neg_integer | Range.t(), item_or_items) :: srv
+  @spec add_flags(srv, non_neg_integer | Range.t(), item_or_items, silent: true) :: srv
   def add_flags(pid, number_or_range, flags, opts \\ []),
     do: GenServer.call(pid, {:add_flags, number_or_range, flags, opts}) && pid
 
+  @spec set_flags(srv, non_neg_integer | Range.t(), item_or_items) :: srv
+  @spec set_flags(srv, non_neg_integer | Range.t(), item_or_items, silent: true) :: srv
   def set_flags(pid, number_or_range, flags, opts \\ []),
     do: GenServer.call(pid, {:set_flags, number_or_range, flags, opts}) && pid
 
+  @spec copy(srv, non_neg_integer | Range.t(), String.t()) :: srv
   def copy(pid, sequence, mailbox_name),
     do: GenServer.call(pid, {:copy, sequence, mailbox_name}) && pid
 
+  @spec expunge(srv) :: srv
   def expunge(pid),
     do: GenServer.call(pid, :expunge) && pid
 
@@ -241,45 +295,59 @@ defmodule Mailroom.IMAP do
   ## Options
    - `:timeout` - (integer) number of milliseconds before terminating the idle command if no update has been received. Defaults to `1_500_00` (25 minutes)
   """
+  @spec idle(srv) :: srv
+  @spec idle(srv, timeout: non_neg_integer) :: srv
   def idle(pid, opts \\ []) do
     timeout = Keyword.get(opts, :timeout, 1_500_000)
     GenServer.call(pid, {:idle, timeout}, :infinity) && pid
   end
 
+  @spec idle(srv, Process.dest(), any) :: srv
+  @spec idle(srv, Process.dest(), any, timeout: non_neg_integer) :: srv
   def idle(pid, callback_pid, callback_message, opts \\ []) when is_pid(callback_pid) do
     timeout = Keyword.get(opts, :timeout, 1_500_000)
     GenServer.cast(pid, {:idle, timeout, callback_pid, callback_message}) && pid
   end
 
+  @spec cancel_idle(srv) :: srv
   def cancel_idle(pid) do
     GenServer.call(pid, :cancel_idle) && pid
   end
 
+  @spec close(srv) :: srv
   def close(pid),
     do: GenServer.call(pid, :close) && pid
 
+  @spec logout(srv) :: srv
   def logout(pid),
     do: GenServer.call(pid, :logout) && pid
 
+  @spec email_count(srv) :: non_neg_integer
   def email_count(pid),
     do: GenServer.call(pid, :email_count)
 
+  @spec recent_count(pid) :: non_neg_integer
   def recent_count(pid),
     do: GenServer.call(pid, :recent_count)
 
+  @spec unseen_count(srv) :: non_neg_integer
   def unseen_count(pid),
     do: GenServer.call(pid, :unseen_count)
 
+  @spec mailbox(srv) :: State.mailbox()
   def mailbox(pid),
     do: GenServer.call(pid, :mailbox)
 
+  @spec state(srv) :: State.connection()
   def state(pid),
     do: GenServer.call(pid, :state)
 
+  @impl true
   def init(opts) do
     {:ok, %{debug: opts.debug, ssl: opts.ssl}}
   end
 
+  @impl true
   def handle_call({:connect, server, port}, from, state) do
     {:ok, socket} = Socket.connect(server, port, ssl: state.ssl, debug: state.debug, active: true)
 
@@ -430,6 +498,7 @@ defmodule Mailroom.IMAP do
   def handle_call(:state, _from, %{state: connection_state} = state),
     do: {:reply, connection_state, state}
 
+  @impl true
   def handle_cast({:idle, timeout, reply_to, reply_with}, state) do
     timer = Process.send_after(self(), :idle_timeout, timeout)
 
@@ -442,6 +511,7 @@ defmodule Mailroom.IMAP do
      })}
   end
 
+  @impl true
   def handle_info({:ssl, _socket, msg}, state) do
     if state.debug, do: IO.write(["> [ssl] ", msg])
     handle_response(msg, state)
@@ -462,11 +532,13 @@ defmodule Mailroom.IMAP do
     {:stop, :ssl_closed, state}
   end
 
+  @spec cancel_idle(Socket.t(), reference | nil) :: :ok
   defp cancel_idle(socket, timer) do
     if timer, do: Process.cancel_timer(timer)
     :ok = Socket.send(socket, ["DONE\r\n"])
   end
 
+  @spec handle_response(String.t(), State.t()) :: {:noreply, State.t()}
   defp handle_response(
          <<"* OK ", msg::binary>>,
          %{state: :unauthenticated, cmd_map: %{connect: caller} = cmd_map} = state
@@ -565,6 +637,7 @@ defmodule Mailroom.IMAP do
     {:noreply, state}
   end
 
+  @spec process_fetch_data(String.t(), State.t()) :: String.t()
   defp process_fetch_data(data, state) do
     case Regex.run(~r/\A(.+ {(\d+)}\r\n)\z/sm, data) do
       [_, initial, bytes] ->
@@ -576,6 +649,7 @@ defmodule Mailroom.IMAP do
     end
   end
 
+  @spec handle_exists(integer, State.t()) :: {:noreply, State.t()}
   defp handle_exists(number, %{socket: socket, idle_caller: caller, idle_timer: timer} = state) do
     if caller do
       cancel_idle(socket, timer)
@@ -584,6 +658,7 @@ defmodule Mailroom.IMAP do
     {:noreply, %{state | exists: number}}
   end
 
+  @spec parse_fetch_response(String.t()) :: fetch_result
   defp parse_fetch_response(string) do
     string
     |> parse_list_only
@@ -591,6 +666,7 @@ defmodule Mailroom.IMAP do
     |> parse_fetch_results
   end
 
+  @spec parse_fetch_results(Utils.item_map(iodata)) :: fetch_result
   defp parse_fetch_results(%{} = map) do
     map
     |> Enum.map(fn {key, value} ->
@@ -604,6 +680,12 @@ defmodule Mailroom.IMAP do
     |> Map.new()
   end
 
+  @spec parse_fetch_item(Utils.item(), iodata) ::
+          {:internal_date, :calendar.datetime()}
+          | {:uid, non_neg_integer}
+          | {:envelope, Envelope.t()}
+          | {:body_structure, BodyStructure.Part.t()}
+          | {Utils.item(), iodata}
   defp parse_fetch_item(:internal_date, datetime),
     do: {:internal_date, parse_timestamp(datetime)}
 
@@ -619,6 +701,7 @@ defmodule Mailroom.IMAP do
   defp parse_fetch_item(key, value),
     do: {key, value}
 
+  @spec to_sequence(integer | Range.t()) :: iodata
   defp to_sequence(number) when is_integer(number),
     do: Integer.to_string(number)
 
@@ -628,6 +711,7 @@ defmodule Mailroom.IMAP do
   defp to_sequence(%Range{first: first, last: last}),
     do: [Integer.to_string(first), ":", Integer.to_string(last)]
 
+  @spec store_silent(list) :: String.t()
   defp store_silent([]), do: ""
 
   defp store_silent([{:silent, _} | _tail]),
@@ -636,11 +720,13 @@ defmodule Mailroom.IMAP do
   defp store_silent([_ | tail]),
     do: store_silent(tail)
 
+  @spec process_connection_message(String.t(), State.t()) :: State.t()
   defp process_connection_message(<<"[CAPABILITY ", msg::binary>>, state),
     do: %{state | capability: parse_capability(msg)}
 
   defp process_connection_message(_msg, state), do: state
 
+  @spec handle_tagged_response(cmd_tag, String.t(), State.t()) :: {:noreply, State.t()}
   defp handle_tagged_response(cmd_tag, <<"OK ", msg::binary>>, %{cmd_map: cmd_map} = state),
     do: process_command_response(cmd_tag, cmd_map[cmd_tag], msg, state)
 
@@ -652,6 +738,7 @@ defmodule Mailroom.IMAP do
   defp handle_tagged_response(_cmd_tag, <<"BAD ", msg::binary>>, _state),
     do: raise("Bad command #{msg}")
 
+  @spec process_command_response(cmd_tag, cmd_map, String.t(), State.t()) :: {:noreply, State.t()}
   defp process_command_response(
          cmd_tag,
          %{command: "STARTTLS", caller: caller},
@@ -837,6 +924,7 @@ defmodule Mailroom.IMAP do
     {:noreply, state}
   end
 
+  @spec process_command_error(cmd_tag, cmd_map, String.t(), State.t()) :: {:noreply, State.t()}
   defp process_command_error(cmd_tag, %{command: "LOGIN", caller: caller}, msg, state) do
     state = remove_command_from_state(state, cmd_tag)
     {:noreply, send_command(caller, "LOGOUT", %{state | temp: {:error, msg}})}
@@ -845,9 +933,11 @@ defmodule Mailroom.IMAP do
   defp process_command_error(cmd_tag, %{caller: caller}, msg, state),
     do: send_error(caller, msg, remove_command_from_state(state, cmd_tag))
 
+  @spec remove_command_from_state(State.t(), cmd_tag) :: State.t()
   defp remove_command_from_state(%{cmd_map: cmd_map} = state, cmd_tag),
     do: %{state | cmd_map: Map.delete(cmd_map, cmd_tag)}
 
+  @spec send_command(GenServer.from() | nil, iodata, State.t()) :: State.t()
   defp send_command(
          caller,
          command,
@@ -863,9 +953,11 @@ defmodule Mailroom.IMAP do
     }
   end
 
+  @spec increment_command_number(integer) :: integer
   defp increment_command_number(999), do: 1
   defp increment_command_number(number), do: number + 1
 
+  @spec fetch_all_data(non_neg_integer, non_neg_integer, iolist, State.t()) :: String.t()
   defp fetch_all_data(bytes_required, bytes_read, acc, _state) when bytes_read > bytes_required,
     do: :erlang.iolist_to_binary(Enum.reverse(acc))
 
@@ -877,6 +969,7 @@ defmodule Mailroom.IMAP do
     fetch_all_data(bytes_required, bytes_read + byte_size(line), [line | acc], state)
   end
 
+  @spec get_next_line(State.t()) :: iodata
   defp get_next_line(%{debug: debug}) do
     receive do
       {:ssl, _socket, data} ->
@@ -889,16 +982,19 @@ defmodule Mailroom.IMAP do
     end
   end
 
+  @spec send_reply(GenServer.from(), any, State.t()) :: {:noreply, State.t()}
   defp send_reply(caller, msg, state) do
     GenServer.reply(caller, {:ok, msg})
     {:noreply, state}
   end
 
+  @spec send_error(GenServer.from(), String.t(), State.t()) :: {:noreply, State.t()}
   defp send_error(caller, err_msg, state) do
     GenServer.reply(caller, {:error, trim(err_msg)})
     {:noreply, state}
   end
 
+  @spec parse_mailbox({Utils.item(), String.t()}) :: State.mailbox()
   defp parse_mailbox({"INBOX", msg}),
     do: parse_mailbox({:inbox, msg})
 
@@ -908,6 +1004,7 @@ defmodule Mailroom.IMAP do
   defp parse_mailbox({name, <<"[READ-WRITE]", _rest::binary>>}),
     do: {name, :rw}
 
+  @spec parse_capability(String.t()) :: [String.t()]
   defp parse_capability(string) do
     [list | _] = String.split(trim(string), "]", parts: 2)
     String.split(list, " ")
