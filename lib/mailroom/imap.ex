@@ -87,7 +87,7 @@ defmodule Mailroom.IMAP do
   @type cmd_tag :: <<_::32>>
   @type cmd_map :: %{command: String.t(), caller: GenServer.from() | nil}
 
-  @type id_or_range :: non_neg_integer :: Range.t()
+  @type id_or_range :: non_neg_integer | Range.t()
 
   @type fetch_result :: %{
           optional(:internal_date) => :calendar.datetime(),
