@@ -104,6 +104,8 @@ defmodule Mailroom.IMAP.UtilsTest do
   end
 
   test "flags_to_list/1" do
+    assert flags_to_list([]) == []
+
     assert flags_to_list(["\\Seen", "\\Answered"]) == ["(", "\\Seen", " ", "\\Answered", ")"]
 
     assert flags_to_list([:seen, :answered, :flagged, :deleted, :draft, :recent]) == [

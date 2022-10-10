@@ -1,4 +1,4 @@
-use Mix.Config
+import Config
 
 config :ex_unit,
   refute_receive_timeout: 900,

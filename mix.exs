@@ -50,12 +50,15 @@ defmodule Mailroom.Mixfile do
   # Type "mix help deps" for more examples and options
   defp deps do
     [
-      {:mail, "~> 0.2"},
+      {:mail,
+       git: "https://github.com/primait/elixir-mail.git",
+       ref: "17cd258340b2e5b58dfb5a2ca7da8d5a9464faa0"},
       # DEV
       {:credo, "~> 1.0", only: :dev},
       # Docs
       {:ex_doc, "~> 0.14", only: [:dev, :docs]},
-      {:earmark, "~> 1.0", only: [:dev, :docs]}
+      {:earmark, "~> 1.0", only: [:dev, :docs]},
+      {:dialyxir, "~> 1.1", only: [:dev], runtime: false}
     ]
   end
 

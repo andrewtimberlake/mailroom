@@ -1375,6 +1375,54 @@ defmodule Mailroom.IMAPTest do
     IMAP.logout(client)
   end
 
+  test "UID STORE" do
+    server = TestServer.start(ssl: true)
+
+    TestServer.expect(server, fn expectations ->
+      expectations
+      |> TestServer.tagged(:connect, "* OK IMAP ready\r\n")
+      |> TestServer.tagged("LOGIN \"test@example.com\" \"P@55w0rD\"\r\n", [
+        "* CAPABILITY (IMAPrev4)\r\n",
+        "OK test@example.com authenticated (Success)\r\n"
+      ])
+      |> TestServer.tagged("SELECT INBOX\r\n", [
+        "* FLAGS (\\Flagged \\Draft \\Deleted \\Seen)\r\n",
+        "* OK [PERMANENTFLAGS (\\Flagged \\Draft \\Deleted \\Seen \\*)] Flags permitted\r\n",
+        "* 2 EXISTS\r\n",
+        "* 1 RECENT\r\n",
+        "OK [READ-WRITE] INBOX selected. (Success)\r\n"
+      ])
+      |> TestServer.tagged("UID STORE 1 -FLAGS (\\Seen)\r\n", [
+        "* 1 FETCH (FLAGS ())\r\n",
+        "OK Success\r\n"
+      ])
+      |> TestServer.tagged("UID STORE 1 +FLAGS (\\Answered)\r\n", [
+        "* 1 FETCH (FLAGS (\\Answered))\r\n",
+        "OK Success\r\n"
+      ])
+      |> TestServer.tagged("UID STORE 1:2 FLAGS.SILENT (\\Deleted)\r\n", ["OK Success\r\n"])
+      |> TestServer.tagged("LOGOUT\r\n", [
+        "* BYE We're out of here\r\n",
+        "OK Logged out\r\n"
+      ])
+    end)
+
+    assert {:ok, client} =
+             IMAP.connect(server.address, "test@example.com", "P@55w0rD",
+               port: server.port,
+               ssl: true,
+               debug: @debug
+             )
+
+    client
+    |> IMAP.select(:inbox)
+    |> IMAP.remove_flags(1, [:seen], uid: true)
+    |> IMAP.add_flags(1, [:answered], uid: true)
+    |> IMAP.set_flags(1..2, [:deleted], silent: true, uid: true)
+
+    IMAP.logout(client)
+  end
+
   test "COPY" do
     server = TestServer.start(ssl: true)
 
@@ -1512,6 +1560,58 @@ defmodule Mailroom.IMAPTest do
     |> IMAP.select(:inbox)
     |> IMAP.idle(timeout: 100)
     |> IMAP.idle()
+
+    IMAP.logout(client)
+  end
+
+  test "APPEND" do
+    server = TestServer.start(ssl: true)
+
+    message_literal = """
+    Delivered-To: test@example.com\r
+    Subject: Test\r
+    \r
+    hello, world\r
+    \r
+    """
+
+    TestServer.expect(server, fn expectations ->
+      expectations
+      |> TestServer.tagged(:connect, "* OK IMAP ready\r\n")
+      |> TestServer.tagged("LOGIN \"test@example.com\" \"P@55w0rD\"\r\n", [
+        "* CAPABILITY (IMAPrev4)\r\n",
+        "OK test@example.com authenticated (Success)\r\n"
+      ])
+      |> TestServer.tagged("SELECT INBOX\r\n", [
+        "* FLAGS (\\Flagged \\Draft \\Deleted \\Seen)\r\n",
+        "* OK [PERMANENTFLAGS (\\Flagged \\Draft \\Deleted \\Seen \\*)] Flags permitted\r\n",
+        "* 2 EXISTS\r\n",
+        "* 1 RECENT\r\n",
+        "OK [READ-WRITE] INBOX selected. (Success)\r\n"
+      ])
+      |> TestServer.tagged("APPEND INBOX {#{byte_size(message_literal)}}\r\n", "+ OK\r\n")
+      |> TestServer.on("Delivered-To: test@example.com\r\n", "")
+      |> TestServer.on("Subject: Test\r\n", "")
+      |> TestServer.on("\r\n", "")
+      |> TestServer.on("hello, world\r\n", "")
+      |> TestServer.on("\r\n", "")
+      |> TestServer.on("\r\n", "A003 OK APPEND completed\r\n")
+      |> TestServer.on("A004 LOGOUT\r\n", [
+        "* BYE We're out of here\r\n",
+        "A004 OK Logged out\r\n"
+      ])
+    end)
+
+    assert {:ok, client} =
+             IMAP.connect(server.address, "test@example.com", "P@55w0rD",
+               port: server.port,
+               ssl: true,
+               debug: @debug
+             )
+
+    client
+    |> IMAP.select(:inbox)
+    |> IMAP.append("INBOX", message_literal)
 
     IMAP.logout(client)
   end

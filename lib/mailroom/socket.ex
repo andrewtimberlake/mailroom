@@ -14,6 +14,8 @@ defmodule Mailroom.Socket do
       #{inspect(__MODULE__)}.close(ssl_socket)
   """
 
+  require Logger
+
   @timeout 15_000
 
   @type t :: %__MODULE__{}
@@ -77,7 +79,7 @@ defmodule Mailroom.Socket do
   def recv(%{debug: debug, ssl: ssl} = socket) do
     case do_recv(socket) do
       {:ok, line} ->
-        if debug, do: IO.write(["> ", tag_debug(ssl), line])
+        if debug, do: Logger.info(["> ", tag_debug(ssl), line])
         {:ok, String.replace_suffix(line, "\r\n", "")}
 
       {:error, reason} ->
@@ -101,9 +103,9 @@ defmodule Mailroom.Socket do
 
       :ok = #{inspect(__MODULE__)}.send(socket)
   """
-  @spec send(t, String.t()) :: :ok | {:error, String.t()}
+  @spec send(t, iodata) :: :ok | {:error, String.t()}
   def send(%{debug: debug, ssl: ssl} = socket, data) do
-    if debug, do: IO.write(["< ", tag_debug(ssl), data])
+    if debug, do: Logger.info(["< ", tag_debug(ssl), data])
 
     case do_send(socket, data) do
       :ok -> :ok
