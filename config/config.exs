@@ -1,6 +1,5 @@
 # This file is responsible for configuring your application
-# and its dependencies with the aid of the Mix.Config module.
-use Mix.Config
+import Config
 
 # This configuration is loaded before any dependency and is restricted
 # to this project. If another project depends on this project, this
@@ -27,5 +26,5 @@ use Mix.Config
 # Configuration from the imported file will override the ones defined
 # here (which is why it is important to import them last).
 #
-environment_config = Path.join([__DIR__, "#{Mix.env()}.exs"])
-if File.exists?(environment_config), do: import_config("#{Mix.env()}.exs")
+environment_config = Path.join([__DIR__, "#{config_env()}.exs"])
+if File.exists?(environment_config), do: import_config("#{config_env()}.exs")
