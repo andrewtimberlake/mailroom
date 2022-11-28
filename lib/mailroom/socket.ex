@@ -60,8 +60,19 @@ defmodule Mailroom.Socket do
   defp parse_opts([opt | tail], state, acc),
     do: parse_opts(tail, state, [opt | acc])
 
-  defp do_connect(addr, true, port, opts, timeout),
-    do: :ssl.connect(addr, port, opts, timeout)
+  defp do_connect(addr, true, port, opts, timeout) do
+    :ssl.connect(
+      addr,
+      port,
+      opts ++
+        [
+          cacerts: :public_key.cacerts_get(),
+          verify: :verify_peer,
+          server_name_indication: to_charlist(addr)
+        ],
+      timeout
+    )
+  end
 
   defp do_connect(addr, false, port, opts, timeout),
     do: :gen_tcp.connect(addr, port, opts, timeout)
