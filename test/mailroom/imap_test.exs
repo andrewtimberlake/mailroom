@@ -25,6 +25,7 @@ defmodule Mailroom.IMAPTest do
              IMAP.connect(server.address, "test@example.com", "P@55w0rD",
                port: server.port,
                ssl: false,
+               ssl_opts: [verify: :verify_none],
                debug: @debug
              )
 
@@ -47,6 +48,7 @@ defmodule Mailroom.IMAPTest do
              IMAP.connect(server.address, "test@example.com", "wrong",
                port: server.port,
                ssl: true,
+               ssl_opts: [verify: :verify_none],
                debug: @debug
              )
   end
@@ -67,6 +69,7 @@ defmodule Mailroom.IMAPTest do
              IMAP.connect(server.address, "test@example.com", "p!@#$%^&*()\"",
                port: server.port,
                ssl: true,
+               ssl_opts: [verify: :verify_none],
                debug: @debug
              )
   end
@@ -87,6 +90,7 @@ defmodule Mailroom.IMAPTest do
              IMAP.connect(server.address, "test@example.com", "P@55w0rD",
                port: server.port,
                ssl: true,
+               ssl_opts: [verify: :verify_none],
                debug: @debug
              )
 
@@ -112,6 +116,7 @@ defmodule Mailroom.IMAPTest do
              IMAP.connect(server.address, "test@example.com", "P@55w0rD",
                port: server.port,
                ssl: true,
+               ssl_opts: [verify: :verify_none],
                debug: @debug
              )
   end
@@ -143,6 +148,7 @@ defmodule Mailroom.IMAPTest do
              IMAP.connect(server.address, "test@example.com", "P@55w0rD",
                port: server.port,
                ssl: true,
+               ssl_opts: [verify: :verify_none],
                debug: @debug
              )
 
@@ -181,6 +187,7 @@ defmodule Mailroom.IMAPTest do
              IMAP.connect(server.address, "test@example.com", "P@55w0rD",
                port: server.port,
                ssl: true,
+               ssl_opts: [verify: :verify_none],
                debug: @debug
              )
 
@@ -219,6 +226,7 @@ defmodule Mailroom.IMAPTest do
              IMAP.connect(server.address, "test@example.com", "P@55w0rD",
                port: server.port,
                ssl: true,
+               ssl_opts: [verify: :verify_none],
                debug: @debug
              )
 
@@ -258,6 +266,7 @@ defmodule Mailroom.IMAPTest do
              IMAP.connect(server.address, "test@example.com", "P@55w0rD",
                port: server.port,
                ssl: true,
+               ssl_opts: [verify: :verify_none],
                debug: @debug
              )
 
@@ -293,6 +302,7 @@ defmodule Mailroom.IMAPTest do
              IMAP.connect(server.address, "test@example.com", "P@55w0rD",
                port: server.port,
                ssl: true,
+               ssl_opts: [verify: :verify_none],
                debug: @debug
              )
 
@@ -328,6 +338,7 @@ defmodule Mailroom.IMAPTest do
              IMAP.connect(server.address, "test@example.com", "P@55w0rD",
                port: server.port,
                ssl: true,
+               ssl_opts: [verify: :verify_none],
                debug: @debug
              )
 
@@ -368,6 +379,7 @@ defmodule Mailroom.IMAPTest do
              IMAP.connect(server.address, "test@example.com", "P@55w0rD",
                port: server.port,
                ssl: true,
+               ssl_opts: [verify: :verify_none],
                debug: @debug
              )
 
@@ -408,6 +420,7 @@ defmodule Mailroom.IMAPTest do
              IMAP.connect(server.address, "test@example.com", "P@55w0rD",
                port: server.port,
                ssl: true,
+               ssl_opts: [verify: :verify_none],
                debug: @debug
              )
 
@@ -448,6 +461,7 @@ defmodule Mailroom.IMAPTest do
              IMAP.connect(server.address, "test@example.com", "P@55w0rD",
                port: server.port,
                ssl: true,
+               ssl_opts: [verify: :verify_none],
                debug: @debug
              )
 
@@ -499,6 +513,7 @@ defmodule Mailroom.IMAPTest do
              IMAP.connect(server.address, "test@example.com", "P@55w0rD",
                port: server.port,
                ssl: true,
+               ssl_opts: [verify: :verify_none],
                debug: @debug
              )
 
@@ -547,6 +562,7 @@ defmodule Mailroom.IMAPTest do
              IMAP.connect(server.address, "test@example.com", "P@55w0rD",
                port: server.port,
                ssl: true,
+               ssl_opts: [verify: :verify_none],
                debug: @debug
              )
 
@@ -601,6 +617,7 @@ defmodule Mailroom.IMAPTest do
              IMAP.connect(server.address, "test@example.com", "P@55w0rD",
                port: server.port,
                ssl: true,
+               ssl_opts: [verify: :verify_none],
                debug: @debug
              )
 
@@ -647,6 +664,7 @@ defmodule Mailroom.IMAPTest do
              IMAP.connect(server.address, "test@example.com", "P@55w0rD",
                port: server.port,
                ssl: true,
+               ssl_opts: [verify: :verify_none],
                debug: @debug
              )
 
@@ -790,6 +808,7 @@ defmodule Mailroom.IMAPTest do
              IMAP.connect(server.address, "test@example.com", "P@55w0rD",
                port: server.port,
                ssl: true,
+               ssl_opts: [verify: :verify_none],
                debug: @debug
              )
 
@@ -1136,6 +1155,7 @@ defmodule Mailroom.IMAPTest do
              IMAP.connect(server.address, "test@example.com", "P@55w0rD",
                port: server.port,
                ssl: true,
+               ssl_opts: [verify: :verify_none],
                debug: @debug
              )
 
@@ -1179,6 +1199,7 @@ defmodule Mailroom.IMAPTest do
              IMAP.connect(server.address, "test@example.com", "P@55w0rD",
                port: server.port,
                ssl: true,
+               ssl_opts: [verify: :verify_none],
                debug: @debug
              )
 
@@ -1268,6 +1289,7 @@ defmodule Mailroom.IMAPTest do
              IMAP.connect(server.address, "test@example.com", "P@55w0rD",
                port: server.port,
                ssl: true,
+               ssl_opts: [verify: :verify_none],
                debug: @debug
              )
 
@@ -1363,6 +1385,7 @@ defmodule Mailroom.IMAPTest do
              IMAP.connect(server.address, "test@example.com", "P@55w0rD",
                port: server.port,
                ssl: true,
+               ssl_opts: [verify: :verify_none],
                debug: @debug
              )
 
@@ -1407,6 +1430,7 @@ defmodule Mailroom.IMAPTest do
              IMAP.connect(server.address, "test@example.com", "P@55w0rD",
                port: server.port,
                ssl: true,
+               ssl_opts: [verify: :verify_none],
                debug: @debug
              )
 
@@ -1454,6 +1478,7 @@ defmodule Mailroom.IMAPTest do
              IMAP.connect(server.address, "test@example.com", "P@55w0rD",
                port: server.port,
                ssl: true,
+               ssl_opts: [verify: :verify_none],
                debug: @debug
              )
 
@@ -1505,6 +1530,7 @@ defmodule Mailroom.IMAPTest do
              IMAP.connect(server.address, "test@example.com", "P@55w0rD",
                port: server.port,
                ssl: true,
+               ssl_opts: [verify: :verify_none],
                debug: @debug
              )
 
@@ -1543,6 +1569,7 @@ defmodule Mailroom.IMAPTest do
              IMAP.connect(server.address, "test@example.com", "P@55w0rD",
                port: server.port,
                ssl: true,
+               ssl_opts: [verify: :verify_none],
                debug: @debug
              )
 

@@ -17,7 +17,12 @@ defmodule Mailroom.Socket do
   @timeout 15_000
 
   @type t :: %__MODULE__{}
-  defstruct socket: nil, ssl: false, timeout: @timeout, debug: false, connect_opts: []
+  defstruct socket: nil,
+            ssl: false,
+            timeout: @timeout,
+            debug: false,
+            connect_opts: [],
+            ssl_opts: []
 
   @doc """
   Connect to a TCP `server` on `port`
@@ -34,17 +39,22 @@ defmodule Mailroom.Socket do
   """
   @spec connect(String.t(), integer, Keyword.t()) :: {:ok, t} | {:error, String.t()}
   @connect_opts [packet: :line, reuseaddr: true, active: false, keepalive: true]
+  # @ssl_connect_opts [depth: 0, verify: :verify_none]
   @ssl_connect_opts [depth: 0]
   def connect(server, port, opts \\ []) do
     {state, opts} = parse_opts(opts)
     if state.debug, do: IO.puts("[connecting]")
 
     connect_opts = Keyword.merge(@connect_opts, opts)
+    ssl_opts = Keyword.merge(@ssl_connect_opts, state.ssl_opts)
     addr = String.to_charlist(server)
 
-    case do_connect(addr, state.ssl, port, [:binary | connect_opts], state.timeout) do
-      {:ok, socket} -> {:ok, %{state | socket: socket, connect_opts: connect_opts}}
-      {:error, reason} -> {:error, inspect(reason)}
+    case do_connect(addr, state.ssl, port, [:binary | connect_opts], ssl_opts, state.timeout) do
+      {:ok, socket} ->
+        {:ok, %{state | socket: socket, connect_opts: connect_opts}}
+
+      {:error, reason} ->
+        {:error, inspect(reason)}
     end
   end
 
@@ -54,16 +64,19 @@ defmodule Mailroom.Socket do
   defp parse_opts([{:ssl, ssl} | tail], state, acc),
     do: parse_opts(tail, %{state | ssl: ssl}, acc)
 
+  defp parse_opts([{:ssl_opts, ssl_opts} | tail], state, acc),
+    do: parse_opts(tail, %{state | ssl_opts: ssl_opts}, acc)
+
   defp parse_opts([{:debug, debug} | tail], state, acc),
     do: parse_opts(tail, %{state | debug: debug}, acc)
 
   defp parse_opts([opt | tail], state, acc),
     do: parse_opts(tail, state, [opt | acc])
 
-  defp do_connect(addr, true, port, opts, timeout),
-    do: :ssl.connect(addr, port, opts, timeout)
+  defp do_connect(addr, true, port, opts, ssl_opts, timeout),
+    do: :ssl.connect(addr, port, opts ++ ssl_opts, timeout)
 
-  defp do_connect(addr, false, port, opts, timeout),
+  defp do_connect(addr, false, port, opts, _ssl_opts, timeout),
     do: :gen_tcp.connect(addr, port, opts, timeout)
 
   @doc """
@@ -120,8 +133,11 @@ defmodule Mailroom.Socket do
   def ssl_client(%{socket: socket, ssl: true}),
     do: socket
 
-  def ssl_client(%{socket: socket, timeout: timeout, connect_opts: connect_opts} = client) do
-    case :ssl.connect(socket, @ssl_connect_opts ++ connect_opts, timeout) do
+  def ssl_client(
+        %{socket: socket, timeout: timeout, connect_opts: connect_opts, ssl_opts: ssl_opts} =
+          client
+      ) do
+    case :ssl.connect(socket, @ssl_connect_opts ++ connect_opts ++ ssl_opts, timeout) do
       {:ok, socket} -> {:ok, %{client | socket: socket, ssl: true}}
       {:error, {key, reason}} -> {:error, {key, inspect(reason)}}
       {:error, reason} -> {:error, inspect(reason)}
