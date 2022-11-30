@@ -27,7 +27,7 @@ If [available in Hex](https://hex.pm/docs/publish), the package can be installed
 
    ```elixir
    def deps do
-     [{:mailroom, "~> 0.3.0"}]
+     [{:mailroom, "~> 0.4.0"}]
    end
    ```
 
