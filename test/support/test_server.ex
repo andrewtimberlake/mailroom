@@ -105,12 +105,7 @@ defmodule Mailroom.TestServer do
         | @tcp_opts
       ]
 
-      {:ok, socket} =
-        if function_exported?(:ssl, :handshake, 3) do
-          :ssl.handshake(socket, opts, 1_000)
-        else
-          :ssl.ssl_accept(socket, opts, 1_000)
-        end
+      {:ok, socket} = handshake(socket, opts, 1_000)
 
       socket
     else
@@ -213,12 +208,7 @@ defmodule Mailroom.TestServer do
   defp accept_connection({:sslsocket, _, _} = socket) do
     {:ok, socket} = :ssl.transport_accept(socket)
 
-    if function_exported?(:ssl, :handshake, 2) do
-      :ssl.handshake(socket, 1_000)
-    else
-      :ok = :ssl.ssl_accept(socket, 1000)
-      {:ok, socket}
-    end
+    handshake(socket, 1_000)
   end
 
   defp accept_connection(socket),
@@ -235,4 +225,28 @@ defmodule Mailroom.TestServer do
 
   defp socket_recv(socket),
     do: :gen_tcp.recv(socket, 0, 1_000)
+
+  if Code.ensure_loaded?(:ssl) &&
+       function_exported?(:ssl, :handshake, 2) do
+    defp handshake(socket, timeout) do
+      :ssl.handshake(socket, timeout)
+    end
+  else
+    defp handshake(socket, timeout) do
+      :ok = :ssl.ssl_accept(socket, timeout)
+      {:ok, socket}
+    end
+  end
+
+  if Code.ensure_loaded?(:ssl) &&
+       function_exported?(:ssl, :handshake, 3) do
+    defp handshake(socket, opts, timeout) do
+      :ssl.handshake(socket, opts, timeout)
+    end
+  else
+    defp handshake(socket, opts, timeout) do
+      :ok = :ssl.ssl_accept(socket, opts, timeout)
+      {:ok, socket}
+    end
+  end
 end

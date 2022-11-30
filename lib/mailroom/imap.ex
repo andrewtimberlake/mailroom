@@ -10,6 +10,7 @@ defmodule Mailroom.IMAP do
     defstruct socket: nil,
               state: :unauthenticated,
               ssl: false,
+              ssl_opts: [],
               debug: false,
               cmd_map: %{},
               cmd_number: 1,
@@ -68,7 +69,7 @@ defmodule Mailroom.IMAP do
   def connect(server, username, password, options \\ []) do
     opts = parse_opts(options)
     {:ok, pid} = GenServer.start_link(__MODULE__, opts)
-    GenServer.call(pid, {:connect, server, opts.port})
+    GenServer.call(pid, {:connect, server, opts.port, opts.ssl_opts})
 
     case login(pid, username, password) do
       {:ok, _msg} -> {:ok, pid}
@@ -76,13 +77,16 @@ defmodule Mailroom.IMAP do
     end
   end
 
-  defp parse_opts(opts, acc \\ %{ssl: false, port: nil, debug: false})
+  defp parse_opts(opts, acc \\ %{ssl: false, port: nil, debug: false, ssl_opts: []})
 
   defp parse_opts([], acc),
     do: set_default_port(acc)
 
   defp parse_opts([{:ssl, ssl} | tail], acc),
     do: parse_opts(tail, Map.put(acc, :ssl, ssl))
+
+  defp parse_opts([{:ssl_opts, ssl_opts} | tail], acc),
+    do: parse_opts(tail, Map.put(acc, :ssl_opts, ssl_opts))
 
   defp parse_opts([{:port, port} | tail], acc),
     do: parse_opts(tail, Map.put(acc, :port, port))
@@ -254,8 +258,14 @@ defmodule Mailroom.IMAP do
     {:ok, %{debug: opts.debug, ssl: opts.ssl}}
   end
 
-  def handle_call({:connect, server, port}, from, state) do
-    {:ok, socket} = Socket.connect(server, port, ssl: state.ssl, debug: state.debug, active: true)
+  def handle_call({:connect, server, port, ssl_opts}, from, state) do
+    {:ok, socket} =
+      Socket.connect(server, port,
+        ssl: state.ssl,
+        debug: state.debug,
+        active: true,
+        ssl_opts: ssl_opts
+      )
 
     {:noreply,
      %State{

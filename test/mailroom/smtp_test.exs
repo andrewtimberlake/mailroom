@@ -112,7 +112,9 @@ defmodule Mailroom.SMTPTest do
       )
     end)
 
-    {:ok, client} = SMTP.connect(server.address, port: server.port)
+    {:ok, client} =
+      SMTP.connect(server.address, port: server.port, ssl_opts: [verify: :verify_none])
+
     SMTP.quit(client)
   end
 
@@ -260,7 +262,12 @@ defmodule Mailroom.SMTPTest do
     end)
 
     {:ok, client} =
-      SMTP.connect(server.address, port: server.port, username: "username", password: "password")
+      SMTP.connect(server.address,
+        port: server.port,
+        username: "username",
+        password: "password",
+        ssl_opts: [verify: :verify_none]
+      )
 
     SMTP.quit(client)
   end
