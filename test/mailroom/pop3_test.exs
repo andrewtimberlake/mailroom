@@ -21,7 +21,8 @@ defmodule Mailroom.POP3Test do
       assert {:ok, _client} =
                POP3.connect(server.address, "test@example.com", "P@55w0rD",
                  port: server.port,
-                 ssl: unquote(ssl)
+                 ssl: unquote(ssl),
+                 ssl_opts: [verify: :verify_none]
                )
     end
 
@@ -38,7 +39,8 @@ defmodule Mailroom.POP3Test do
       assert {:error, :authentication, "[AUTH] Authentication failure."} ==
                POP3.connect(server.address, "test@example.com", "P@55w0rD",
                  port: server.port,
-                 ssl: unquote(ssl)
+                 ssl: unquote(ssl),
+                 ssl_opts: [verify: :verify_none]
                )
     end
 
@@ -56,7 +58,8 @@ defmodule Mailroom.POP3Test do
       assert {:ok, client} =
                POP3.connect(server.address, "test@example.com", "P@55w0rD",
                  port: server.port,
-                 ssl: unquote(ssl)
+                 ssl: unquote(ssl),
+                 ssl_opts: [verify: :verify_none]
                )
 
       assert POP3.stat(client) == {1, 123}
@@ -76,7 +79,8 @@ defmodule Mailroom.POP3Test do
       {:ok, client} =
         POP3.connect(server.address, "test@example.com", "P@55w0rD",
           port: server.port,
-          ssl: unquote(ssl)
+          ssl: unquote(ssl),
+          ssl_opts: [verify: :verify_none]
         )
 
       assert client |> POP3.list() == [{1, 121}, {2, 113}]
@@ -116,7 +120,8 @@ defmodule Mailroom.POP3Test do
       {:ok, client} =
         POP3.connect(server.address, "test@example.com", "P@55w0rD",
           port: server.port,
-          ssl: unquote(ssl)
+          ssl: unquote(ssl),
+          ssl_opts: [verify: :verify_none]
         )
 
       {2, 234} = POP3.stat(client)
@@ -139,7 +144,8 @@ defmodule Mailroom.POP3Test do
       {:ok, client} =
         POP3.connect(server.address, "test@example.com", "P@55w0rD",
           port: server.port,
-          ssl: unquote(ssl)
+          ssl: unquote(ssl),
+          ssl_opts: [verify: :verify_none]
         )
 
       {2, 234} = POP3.stat(client)
@@ -160,7 +166,8 @@ defmodule Mailroom.POP3Test do
       assert {:ok, client} =
                POP3.connect(server.address, "test@example.com", "P@55w0rD",
                  port: server.port,
-                 ssl: unquote(ssl)
+                 ssl: unquote(ssl),
+                 ssl_opts: [verify: :verify_none]
                )
 
       assert POP3.reset(client) == :ok
@@ -180,7 +187,8 @@ defmodule Mailroom.POP3Test do
       assert {:ok, client} =
                POP3.connect(server.address, "test@example.com", "P@55w0rD",
                  port: server.port,
-                 ssl: unquote(ssl)
+                 ssl: unquote(ssl),
+                 ssl_opts: [verify: :verify_none]
                )
 
       assert POP3.quit(client) == :ok
