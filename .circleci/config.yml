@@ -27,7 +27,14 @@ jobs:
             - .mix
           key: v2-dependencies-{{ checksum "mix.lock" }}
       - run: mix test --exclude not_implemented
-      - run: mix format --check-formatted
+      - when:
+          condition:
+            not:
+              matches:
+                pattern: "^1\\.(?:9|10|11)\\.\\d+$"
+                value: <<parameters.elixir_version>>
+          steps:
+            - run: mix format --check-formatted
 workflows:
   test_versions:
     jobs:
