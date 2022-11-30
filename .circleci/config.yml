@@ -1,17 +1,43 @@
-# Elixir CircleCI 2.0 configuration file
-#
-# Check https://circleci.com/docs/2.0/language-elixir/ for more details
-version: 2
+version: 2.1
 jobs:
-  build:
-    docker:
-      - image: circleci/elixir:1.6
-
+  test:
+    parameters:
+      elixir_version:
+        type: string
     working_directory: ~/repo
+    docker:
+      - image: cimg/elixir:<<parameters.elixir_version>>
+        environment:
+          - MIX_ENV: test
     steps:
       - checkout
-
-      - run: mix local.hex --force
-      - run: mix local.rebar --force
-      - run: mix deps.get
-      - run: mix test
+      - restore_cache:
+          keys:
+            - v2-dependencies-{{ checksum "mix.lock" }}
+      - run:
+          name: Install dependencies
+          command: |
+            mix local.hex --force
+            mix local.rebar --force
+            mix deps.get
+      - run: mix compile
+      - save_cache:
+          paths:
+            - deps
+            - .mix
+          key: v2-dependencies-{{ checksum "mix.lock" }}
+      - run: mix test --exclude not_implemented
+      - run: mix format --check-formatted
+workflows:
+  test_versions:
+    jobs:
+      - test:
+          matrix:
+            parameters:
+              elixir_version:
+                - 1.14.2
+                - 1.13.4
+                - 1.12.3
+                - 1.11.4
+                - 1.10.4
+                - 1.9.4
