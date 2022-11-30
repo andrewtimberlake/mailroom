@@ -3,7 +3,9 @@ defmodule Mailroom.SMTP do
 
   def connect(server, options \\ []) do
     opts = parse_opts(options)
-    {:ok, socket} = Socket.connect(server, opts.port, ssl: opts.ssl, debug: opts.debug)
+
+    {:ok, socket} =
+      Socket.connect(server, opts.port, ssl: opts.ssl, debug: opts.debug, ssl_opts: opts.ssl_opts)
 
     with {:ok, _banner} <- read_banner(socket),
          {:ok, extensions} <- greet(socket),
@@ -15,11 +17,14 @@ defmodule Mailroom.SMTP do
     end
   end
 
-  defp parse_opts(opts, acc \\ %{ssl: false, port: 25, debug: false})
+  defp parse_opts(opts, acc \\ %{ssl: false, port: 25, debug: false, ssl_opts: []})
   defp parse_opts([], acc), do: acc
 
   defp parse_opts([{:ssl, ssl} | tail], acc),
     do: parse_opts(tail, Map.put(acc, :ssl, ssl))
+
+  defp parse_opts([{:ssl_opts, ssl_opts} | tail], acc),
+    do: parse_opts(tail, Map.put(acc, :ssl_opts, ssl_opts))
 
   defp parse_opts([{:port, port} | tail], acc),
     do: parse_opts(tail, Map.put(acc, :port, port))
