@@ -52,7 +52,7 @@ defmodule Mailroom.Mixfile do
     [
       {:mail,
        git: "https://github.com/primait/elixir-mail.git",
-       ref: "17cd258340b2e5b58dfb5a2ca7da8d5a9464faa0"},
+       ref: "f37b4ce2bdd923da59780b70a2f4fde99f3021aa"},
       # DEV
       {:credo, "~> 1.0", only: :dev},
       # Docs
