@@ -254,6 +254,11 @@ defmodule Mailroom.IMAP.Utils do
   defp do_quote_string(nil, acc),
     do: IO.iodata_to_binary(Enum.reverse(["\"" | acc]))
 
+  @spec string_literal(binary) :: binary
+  def string_literal(str) do
+    "{#{byte_size(str)}}\r\n#{str}"
+  end
+
   @type sequence :: Range.t() | integer
 
   @spec numbers_to_sequences([integer]) :: [sequence]

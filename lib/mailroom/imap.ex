@@ -380,7 +380,7 @@ defmodule Mailroom.IMAP do
       {:noreply,
        send_command(
          from,
-         ["LOGIN", " ", quote_string(username), " ", quote_string(password)],
+         ["LOGIN", " ", string_literal(username), " ", string_literal(password)],
          state
        )}
     end
@@ -797,7 +797,7 @@ defmodule Mailroom.IMAP do
     state = %{state | socket: ssl_socket, capability: nil}
 
     {:noreply,
-     send_command(caller, ["LOGIN", " ", quote_string(username), " ", quote_string(password)], %{
+     send_command(caller, ["LOGIN", " ", string_literal(username), " ", string_literal(password)], %{
        state
        | temp: nil
      })}
