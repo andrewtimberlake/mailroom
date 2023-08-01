@@ -205,7 +205,7 @@ defmodule Mailroom.IMAP.Utils do
           hour::binary-size(2), ":", minute::binary-size(2), ":", second::binary-size(2), " ",
           timezone::binary-size(3), _rest::binary>>
       ) do
-    Mail.Parsers.RFC2822.erl_from_timestamp(
+    Mail.Parsers.RFC2822.to_datetime(
       date <>
         " " <>
         month <>

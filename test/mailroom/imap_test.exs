@@ -677,7 +677,7 @@ defmodule Mailroom.IMAPTest do
              {1,
               %{
                 envelope: %Envelope{
-                  date: {{2016, 10, 26}, {14, 23, 14}},
+                  date: ~U"2016-10-26 12:23:14Z",
                   date_string: "Wed, 26 Oct 2016 14:23:14 +0200",
                   subject: "Test 1",
                   from: [
@@ -721,7 +721,7 @@ defmodule Mailroom.IMAPTest do
              {2,
               %{
                 envelope: %Envelope{
-                  date: {{2016, 10, 26}, {14, 24, 15}},
+                  date: ~U"2016-10-26 12:24:15Z",
                   date_string: "Wed, 26 Oct 2016 14:24:15 +0200",
                   subject: "Test 2",
                   from: [
@@ -1214,7 +1214,7 @@ defmodule Mailroom.IMAPTest do
                 envelope: %Mailroom.IMAP.Envelope{
                   bcc: [],
                   cc: [],
-                  date: {{2019, 6, 27}, {12, 0, 1}},
+                  date: ~U"2019-06-27 10:00:01Z",
                   date_string: "Thu, 27 Jun 2019 12:00:01 +0200",
                   from: [
                     %Mailroom.IMAP.Envelope.Address{
@@ -1304,7 +1304,7 @@ defmodule Mailroom.IMAPTest do
                 :envelope => %Mailroom.IMAP.Envelope{
                   bcc: [],
                   cc: [],
-                  date: {{2019, 6, 27}, {12, 0, 1}},
+                  date: ~U"2019-06-27 10:00:01Z",
                   date_string: "Thu, 27 Jun 2019 12:00:01 +0200",
                   from: [
                     %Mailroom.IMAP.Envelope.Address{

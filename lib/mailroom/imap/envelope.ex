@@ -39,7 +39,7 @@ defmodule Mailroom.IMAP.Envelope do
   def new(list) do
     [date, subject, from, sender, reply_to, to, cc, bcc, in_reply_to, message_id] = list
 
-    erlang_date = Mail.Parsers.RFC2822.erl_from_timestamp(date)
+    datetime = Mail.Parsers.RFC2822.to_datetime(date)
     from = parse_addresses(from)
     sender = parse_addresses(sender)
     reply_to = parse_addresses(reply_to)
@@ -49,7 +49,7 @@ defmodule Mailroom.IMAP.Envelope do
 
     %__MODULE__{
       date_string: date,
-      date: erlang_date,
+      date: datetime,
       subject: subject,
       from: from,
       sender: sender,

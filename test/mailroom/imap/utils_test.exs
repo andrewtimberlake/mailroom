@@ -187,6 +187,6 @@ defmodule Mailroom.IMAP.UtilsTest do
   end
 
   test "parse_timestamp/1" do
-    assert parse_timestamp("21-Jun-2018 17:51:47 +0000") == {{2018, 6, 21}, {17, 51, 47}}
+    assert parse_timestamp("21-Jun-2018 17:51:47 +0000") == ~U"2018-06-21 17:51:47Z"
   end
 end
