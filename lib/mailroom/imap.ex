@@ -1,5 +1,5 @@
 defmodule Mailroom.IMAP do
-  require Logger
+  alias Mailroom.BackwardsCompatibleLogger, as: Logger
   use GenServer
 
   import Mailroom.IMAP.Utils
@@ -442,7 +442,7 @@ defmodule Mailroom.IMAP do
   end
 
   def handle_info({:ssl_closed, _}, state) do
-    Logger.warn("SSL closed")
+    Logger.warning("SSL closed")
     {:stop, :ssl_closed, state}
   end
 
@@ -533,7 +533,7 @@ defmodule Mailroom.IMAP do
          %{state | temp: [{String.to_integer(number), parse_fetch_response(data)} | state.temp]}}
 
       _ ->
-        Logger.warn("Unknown untagged response: #{msg}")
+        Logger.warning("Unknown untagged response: #{msg}")
         {:noreply, state}
     end
   end
@@ -545,7 +545,7 @@ defmodule Mailroom.IMAP do
     do: handle_tagged_response(cmd_tag, msg, state)
 
   defp handle_response(msg, state) do
-    Logger.warn("handle_response(socket, #{inspect(msg)}, #{inspect(state)})")
+    Logger.warning("handle_response(socket, #{inspect(msg)}, #{inspect(state)})")
     {:noreply, state}
   end
 
@@ -817,7 +817,7 @@ defmodule Mailroom.IMAP do
   end
 
   defp process_command_response(cmd_tag, %{command: command}, msg, state) do
-    Logger.warn("Command not processed: #{cmd_tag} OK #{msg} - #{command} - #{inspect(state)}")
+    Logger.warning("Command not processed: #{cmd_tag} OK #{msg} - #{command} - #{inspect(state)}")
     {:noreply, state}
   end
 

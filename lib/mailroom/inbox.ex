@@ -1,5 +1,5 @@
 defmodule Mailroom.Inbox do
-  require Logger
+  alias Mailroom.BackwardsCompatibleLogger, as: Logger
 
   defmodule Match do
     defstruct patterns: [], module: nil, function: nil, fetch_mail: false
@@ -215,7 +215,7 @@ defmodule Mailroom.Inbox do
                       Mailroom.IMAP.add_flags(client, msg_id, [:seen])
 
                     other ->
-                      Logger.warn("Unexpected process response #{inspect(other)}")
+                      Logger.warning("Unexpected process response #{inspect(other)}")
                       Mailroom.IMAP.add_flags(client, msg_id, [:seen])
                   end
                 catch
