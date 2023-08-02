@@ -188,6 +188,7 @@ defmodule Mailroom.InboxTest do
           server: server.address,
           port: server.port,
           ssl: true,
+          ssl_opts: [verify: :verify_none],
           assigns: %{test_pid: self()},
           debug: @debug
         )
@@ -268,6 +269,7 @@ defmodule Mailroom.InboxTest do
           server: server.address,
           port: server.port,
           ssl: true,
+          ssl_opts: [verify: :verify_none],
           assigns: %{test_pid: self()},
           debug: @debug
         )
@@ -344,6 +346,7 @@ defmodule Mailroom.InboxTest do
             server: server.address,
             port: server.port,
             ssl: true,
+            ssl_opts: [verify: :verify_none],
             assigns: %{test_pid: self()},
             debug: @debug
           )
@@ -418,6 +421,7 @@ defmodule Mailroom.InboxTest do
             server: server.address,
             port: server.port,
             ssl: true,
+            ssl_opts: [verify: :verify_none],
             assigns: %{test_pid: self()},
             debug: @debug
           )
@@ -488,6 +492,7 @@ defmodule Mailroom.InboxTest do
             server: server.address,
             port: server.port,
             ssl: true,
+            ssl_opts: [verify: :verify_none],
             assigns: %{test_pid: self()},
             debug: @debug
           )
@@ -564,6 +569,7 @@ defmodule Mailroom.InboxTest do
             server: server.address,
             port: server.port,
             ssl: true,
+            ssl_opts: [verify: :verify_none],
             assigns: %{test_pid: self()},
             debug: @debug
           )
