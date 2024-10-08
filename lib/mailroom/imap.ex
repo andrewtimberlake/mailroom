@@ -732,8 +732,15 @@ defmodule Mailroom.IMAP do
          %{command: "FETCH", caller: caller},
          _msg,
          %{temp: temp} = state
-       ),
-       do: send_reply(caller, Enum.reverse(temp), remove_command_from_state(state, cmd_tag))
+       ) do
+    results =
+      temp
+      |> Enum.reverse()
+      |> Enum.sort_by(fn {id, _result} -> id end)
+      |> flatten_fetch_results()
+
+    send_reply(caller, results, remove_command_from_state(state, cmd_tag))
+  end
 
   defp process_command_response(
          cmd_tag,
@@ -901,5 +908,15 @@ defmodule Mailroom.IMAP do
     defp trim(string), do: String.trim(string)
   else
     defp trim(string), do: String.strip(string)
+  end
+
+  defp flatten_fetch_results([]), do: []
+
+  defp flatten_fetch_results([{id, result}, {id, result2} | rest]) do
+    [{id, Map.merge(result, result2)} | flatten_fetch_results(rest)]
+  end
+
+  defp flatten_fetch_results([head | tail]) do
+    [head | flatten_fetch_results(tail)]
   end
 end
