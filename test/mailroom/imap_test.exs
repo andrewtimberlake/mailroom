@@ -44,7 +44,7 @@ defmodule Mailroom.IMAPTest do
       |> TestServer.tagged("LOGOUT\r\n", ["* BYE Logging off now\r\n", "OK We're done\r\n"])
     end)
 
-    assert {:error, :authentication, "[AUTHENTICATIONFAILED] Authentication failed"} =
+    assert {:error, {:authentication, "[AUTHENTICATIONFAILED] Authentication failed"}} =
              IMAP.connect(server.address, "test@example.com", "wrong",
                port: server.port,
                ssl: true,
@@ -65,7 +65,7 @@ defmodule Mailroom.IMAPTest do
       |> TestServer.tagged("LOGOUT\r\n", ["* BYE Logging off now\r\n", "OK We're done\r\n"])
     end)
 
-    assert {:error, :authentication, "[AUTHENTICATIONFAILED] Authentication failed"} =
+    assert {:error, {:authentication, "[AUTHENTICATIONFAILED] Authentication failed"}} =
              IMAP.connect(server.address, "test@example.com", "p!@#$%^&*()\"",
                port: server.port,
                ssl: true,
@@ -1630,5 +1630,15 @@ defmodule Mailroom.IMAPTest do
 
     IMAP.logout(client)
     assert IMAP.state(client) == :logged_out
+  end
+
+  test "failure to connect" do
+    assert {:error, :unable_to_connect} =
+             IMAP.connect("server.wrong.tld", "test@example.com", "P@55w0rD",
+               port: 143,
+               ssl: false,
+               ssl_opts: [verify: :verify_none],
+               debug: @debug
+             )
   end
 end

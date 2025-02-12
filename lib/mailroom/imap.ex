@@ -68,12 +68,11 @@ defmodule Mailroom.IMAP do
   """
   def connect(server, username, password, options \\ []) do
     opts = parse_opts(options)
-    {:ok, pid} = GenServer.start_link(__MODULE__, opts)
-    GenServer.call(pid, {:connect, server, opts.port, opts.ssl_opts})
 
-    case login(pid, username, password) do
-      {:ok, _msg} -> {:ok, pid}
-      {:error, reason} -> {:error, :authentication, reason}
+    with {:ok, pid} <- GenServer.start_link(__MODULE__, opts),
+         {:ok, _} <- GenServer.call(pid, {:connect, server, opts.port, opts.ssl_opts}),
+         {:ok, _msg} <- login(pid, username, password) do
+      {:ok, pid}
     end
   end
 
@@ -106,8 +105,12 @@ defmodule Mailroom.IMAP do
   defp set_default_port(opts),
     do: opts
 
-  defp login(pid, username, password),
-    do: GenServer.call(pid, {:login, username, password})
+  defp login(pid, username, password) do
+    case GenServer.call(pid, {:login, username, password}) do
+      {:ok, msg} -> {:ok, msg}
+      {:error, reason} -> {:error, {:authentication, reason}}
+    end
+  end
 
   def select(pid, mailbox_name),
     do: GenServer.call(pid, {:select, mailbox_name}) && pid
@@ -255,26 +258,24 @@ defmodule Mailroom.IMAP do
     do: GenServer.call(pid, :state)
 
   def init(opts) do
-    {:ok, %{debug: opts.debug, ssl: opts.ssl}}
+    {:ok, %State{debug: opts.debug, ssl: opts.ssl}}
   end
 
   def handle_call({:connect, server, port, ssl_opts}, from, state) do
-    {:ok, socket} =
-      Socket.connect(server, port,
-        ssl: state.ssl,
-        debug: state.debug,
-        active: true,
-        ssl_opts: ssl_opts
-      )
+    server
+    |> Socket.connect(port,
+      ssl: state.ssl,
+      debug: state.debug,
+      active: true,
+      ssl_opts: ssl_opts
+    )
+    |> case do
+      {:ok, socket} ->
+        {:noreply, %{state | socket: socket, cmd_map: %{connect: from}}}
 
-    {:noreply,
-     %State{
-       socket: socket,
-       state: :unauthenticated,
-       debug: state.debug,
-       ssl: state.ssl,
-       cmd_map: %{connect: from}
-     }}
+      {:error, _} ->
+        {:reply, {:error, :unable_to_connect}, state}
+    end
   end
 
   def handle_call({:login, username, password}, from, %{capability: capability} = state) do

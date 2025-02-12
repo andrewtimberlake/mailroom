@@ -583,4 +583,25 @@ defmodule Mailroom.InboxTest do
     assert log =~
              "Processing msg:1 TO:reply@example.com FROM:andrew@internuity.net SUBJECT:\"Test with header\" using Mailroom.InboxTest.TestMailProcessor#match_header -> :delete"
   end
+
+  test "failure to connect" do
+    Process.flag(:trap_exit, true)
+
+    log =
+      ExUnit.CaptureLog.capture_log(fn ->
+        {:ok, pid} =
+          TestMailHeaderRouter.start_link(
+            server: "server.wrong.tld",
+            port: 143,
+            ssl: false,
+            ssl_opts: [verify: :verify_none],
+            assigns: %{test_pid: self()},
+            debug: @debug
+          )
+
+        assert_receive {:EXIT, ^pid, :unable_to_connect}
+      end)
+
+    assert log =~ "Connection failed: :unable_to_connect"
+  end
 end

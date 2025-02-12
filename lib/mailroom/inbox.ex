@@ -63,8 +63,11 @@ defmodule Mailroom.Inbox do
       def close(pid), do: GenServer.call(pid, :close)
 
       def handle_call(:close, _from, %{client: client} = state) do
-        IMAP.cancel_idle(client)
-        IMAP.logout(client)
+        if client do
+          IMAP.cancel_idle(client)
+          IMAP.logout(client)
+        end
+
         {:reply, :ok, %{state | client: nil}}
       end
 
@@ -87,20 +90,26 @@ defmodule Mailroom.Inbox do
 
         server = Keyword.get(opts, :server)
 
-        {:ok, client} =
-          IMAP.connect(
-            server,
-            Keyword.get(opts, :username),
-            Keyword.get(opts, :password),
-            opts
-          )
+        server
+        |> IMAP.connect(
+          Keyword.get(opts, :username),
+          Keyword.get(opts, :password),
+          opts
+        )
+        |> case do
+          {:ok, client} ->
+            folder = Keyword.get(opts, :folder, :inbox)
 
-        folder = Keyword.get(opts, :folder, :inbox)
-        Logger.info("Connecting to #{folder} on #{server}")
-        IMAP.select(client, folder)
-        process_mailbox(client, state)
+            Logger.info("Connecting to #{folder} on #{server}")
+            IMAP.select(client, folder)
+            process_mailbox(client, state)
 
-        {:noreply, %{state | client: client}}
+            {:noreply, %{state | client: client}}
+
+          {:error, reason} ->
+            Logger.error("Connection failed: #{inspect(reason)}")
+            {:stop, reason, state}
+        end
       end
 
       defp idle(client) do
