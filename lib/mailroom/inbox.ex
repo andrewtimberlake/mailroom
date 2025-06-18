@@ -195,7 +195,7 @@ defmodule Mailroom.Inbox do
     ]
 
     quote location: :keep do
-      defp process_mailbox(client, %{assigns: assigns}) do
+      defp process_mailbox(client, %{assigns: assigns, opts: opts}) do
         emails = Mailroom.IMAP.email_count(client)
 
         if emails > 0 do
@@ -203,7 +203,7 @@ defmodule Mailroom.Inbox do
 
           Mailroom.IMAP.search(client, "UNSEEN", unquote(fetch_items_required), fn {msg_id,
                                                                                     response} ->
-            case generate_mail_info(response) do
+            case generate_mail_info(response, opts) do
               :error ->
                 Logger.error(fn ->
                   "Unable to process envelope #{inspect(response)}"
@@ -213,7 +213,7 @@ defmodule Mailroom.Inbox do
 
               mail_info ->
                 try do
-                  case perform_match(client, msg_id, mail_info, assigns) do
+                  case perform_match(client, msg_id, mail_info, assigns, opts) do
                     :delete ->
                       Mailroom.IMAP.add_flags(client, msg_id, [:deleted])
 
@@ -262,7 +262,7 @@ defmodule Mailroom.Inbox do
         end
       end
 
-      def perform_match(client, msg_id, mail_info, assigns \\ %{}) do
+      def perform_match(client, msg_id, mail_info, assigns \\ %{}, opts \\ []) do
         {result, mod_fun} =
           case do_match(mail_info) do
             :no_match ->
@@ -272,7 +272,8 @@ defmodule Mailroom.Inbox do
               {:ignore, nil}
 
             {module, function, fetch_mail} ->
-              {mail, message} = if fetch_mail, do: fetch_mail(client, msg_id), else: {nil, nil}
+              {mail, message} =
+                if fetch_mail, do: fetch_mail(client, msg_id, opts), else: {nil, nil}
 
               context = %MessageContext{
                 id: msg_id,
@@ -297,11 +298,11 @@ defmodule Mailroom.Inbox do
         result
       end
 
-      defp fetch_mail(client, msg_id) do
+      defp fetch_mail(client, msg_id, opts) do
         {:ok, [{^msg_id, %{"BODY[]" => mail}}]} =
           Mailroom.IMAP.fetch(client, msg_id, "BODY.PEEK[]")
 
-        {mail, Mail.Parsers.RFC2822.parse(mail)}
+        {mail, Mail.Parsers.RFC2822.parse(mail, Keyword.get(opts, :parser_opts, []))}
       end
 
       defp log_email([]), do: "Unknown"

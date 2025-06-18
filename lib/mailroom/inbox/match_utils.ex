@@ -68,7 +68,9 @@ defmodule Mailroom.Inbox.MatchUtils do
   defp match_in_list([pattern | _], pattern), do: true
   defp match_in_list([_head | tail], pattern), do: match_in_list(tail, pattern)
 
-  def generate_mail_info(%{envelope: %Envelope{} = envelope} = response) do
+  def generate_mail_info(%{envelope: %Envelope{} = envelope} = response, opts) do
+    parser_opts = Keyword.get(opts, :parser_opts, [])
+
     %Envelope{to: to, cc: cc, bcc: bcc, from: from, reply_to: reply_to, subject: subject} =
       envelope
 
@@ -91,7 +93,9 @@ defmodule Mailroom.Inbox.MatchUtils do
       case response do
         %{"BODY[HEADER]" => headers} ->
           try do
-            %{headers: headers} = Mail.Parsers.RFC2822.parse(headers <> "\r\n")
+            %{headers: headers} =
+              Mail.Parsers.RFC2822.parse(headers <> "\r\n", parser_opts)
+
             headers
           rescue
             _ ->
@@ -102,6 +106,9 @@ defmodule Mailroom.Inbox.MatchUtils do
           %{}
       end
 
+    {_, subject} =
+      Mail.Parsers.RFC2822.parse_header("Subject: #{subject}", parser_opts)
+
     %{
       recipients: recipients,
       to: to,
@@ -109,13 +116,13 @@ defmodule Mailroom.Inbox.MatchUtils do
       bcc: bcc,
       from: get_email_addresses(from),
       reply_to: get_email_addresses(reply_to),
-      subject: subject || "",
+      subject: subject,
       has_attachment: has_attachment,
       headers: headers
     }
   end
 
-  def generate_mail_info(%{envelope: :error}) do
+  def generate_mail_info(%{envelope: :error}, _opts) do
     :error
   end
 

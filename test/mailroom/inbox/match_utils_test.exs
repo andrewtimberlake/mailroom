@@ -207,7 +207,7 @@ defmodule Mailroom.Inbox.MatchUtilsTest do
              from: ["john@example.com"],
              reply_to: ["reply@example.com"],
              subject: "Test subject"
-           } = generate_mail_info(%{envelope: envelope, body_structure: body_structure})
+           } = generate_mail_info(%{envelope: envelope, body_structure: body_structure}, [])
   end
 
   test "generate_match_info/1 with invalid data" do
@@ -235,6 +235,6 @@ defmodule Mailroom.Inbox.MatchUtilsTest do
              reply_to: ["reply@example.com"],
              subject: "Test subject",
              headers: %{}
-           } = generate_mail_info(%{:envelope => envelope, "BODY[HEADER]" => headers})
+           } = generate_mail_info(%{:envelope => envelope, "BODY[HEADER]" => headers}, [])
   end
 end
