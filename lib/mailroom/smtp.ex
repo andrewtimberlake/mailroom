@@ -84,7 +84,7 @@ defmodule Mailroom.SMTP do
     do: {:temp_error, {"4" <> code, reason}}
 
   defp parse_smtp_response(<<"5", code::binary-size(2), " ", reason::binary>>),
-    do: {:error, {"5" <> code, reason}}
+    do: {:perm_error, {"5" <> code, reason}}
 
   defp parse_exentions(lines, acc \\ [])
   defp parse_exentions([], acc), do: Enum.reverse(acc)
@@ -206,31 +206,6 @@ defmodule Mailroom.SMTP do
   defp decode_base64_lowercase(string),
     do: string |> Base.decode64!() |> String.downcase()
 
-  def send_message(socket, from, to, message) do
-    Socket.send(socket, ["MAIL FROM: <", from, ">\r\n"])
-    {:ok, data} = Socket.recv(socket)
-    {:ok, {"250", _ok}} = parse_smtp_response(data)
-
-    Socket.send(socket, ["RCPT TO: <", to, ">\r\n"])
-    {:ok, data} = Socket.recv(socket)
-    {:ok, {"250", _}} = parse_smtp_response(data)
-
-    Socket.send(socket, "DATA\r\n")
-    {:ok, data} = Socket.recv(socket)
-    {:ok, {"354", _ok}} = parse_smtp_response(data)
-
-    message
-    |> String.split(~r/\r\n/)
-    |> Enum.each(fn line ->
-      :ok = Socket.send(socket, [line, "\r\n"])
-    end)
-
-    :ok = Socket.send(socket, ".\r\n")
-    {:ok, data} = Socket.recv(socket)
-    {:ok, {"250", _}} = parse_smtp_response(data)
-    :ok
-  end
-
   def quit(socket) do
     Socket.send(socket, "QUIT\r\n")
     {:ok, data} = Socket.recv(socket)
@@ -242,5 +217,104 @@ defmodule Mailroom.SMTP do
     {:ok, hostent} = :inet.gethostbyname(name)
     {:hostent, name, _aliases, :inet, _, _addresses} = hostent
     to_string(name)
+  end
+
+  defp send_from_command(socket, from) do
+    with :ok <- Socket.send(socket, ["MAIL FROM: <", from, ">\r\n"]),
+         {:ok, data} <- Socket.recv(socket),
+         {:ok, {"250", _msg}} <- parse_smtp_response(data) do
+      :ok
+    else
+      {:ok, resp} -> {:error, {"unexpected response", resp}}
+      err -> err
+    end
+  end
+
+  defp send_rcpt_command(_socket, []) do
+    :ok
+  end
+
+  defp send_rcpt_command(socket, [to | rest]) do
+    send_rcpt_command(socket, to)
+    |> case do
+      :ok -> send_rcpt_command(socket, rest)
+      err -> err
+    end
+  end
+
+  defp send_rcpt_command(socket, to) when is_bitstring(to) do
+    # Error codes from https://serversmtp.com/smtp-error/
+    # 250 - :ok
+    # 251 - Not local user, the email will be forwarded.
+    with :ok <- Socket.send(socket, ["RCPT TO: <", to, ">\r\n"]),
+         {:ok, data} <- Socket.recv(socket),
+         {:ok, {code, _msg}} when code in ["250", "251"] <- parse_smtp_response(data) do
+      :ok
+    else
+      {:ok, resp} -> {:error, {"unexpected response", resp}}
+      err -> err
+    end
+  end
+
+  defp send_data_command(socket) do
+    with :ok <- Socket.send(socket, "DATA\r\n"),
+         {:ok, data} <- Socket.recv(socket),
+         {:ok, {"354", _msg}} <- parse_smtp_response(data) do
+      :ok
+    else
+      {:ok, resp} -> {:error, {"unexpected response", resp}}
+      err -> err
+    end
+  end
+
+  defp send_data_end_command(socket) do
+    with :ok <- Socket.send(socket, ".\r\n"),
+         {:ok, data} <- Socket.recv(socket),
+         {:ok, {"250", _msg}} <- parse_smtp_response(data) do
+      :ok
+    else
+      {:ok, resp} -> {:error, {"unexpected response", resp}}
+      err -> err
+    end
+  end
+
+  def send_text(socket, message) do
+    message
+    |> String.split(~r/\r\n/)
+    |> Enum.each(fn line ->
+      ## Escape period at start of line (rfc5321 4.5.2)
+      escaped_line = String.replace(line, ~r/^\./, "..")
+      :ok = Socket.send(socket, [escaped_line, "\r\n"])
+    end)
+
+    :ok
+  end
+
+  def send_message(socket, from, to, message) do
+    with :ok <- send_from_command(socket, from),
+         :ok <- send_rcpt_command(socket, to),
+         :ok <- send_data_command(socket),
+         :ok <- send_text(socket, message),
+         :ok <- send_data_end_command(socket) do
+      :ok
+    else
+      err ->
+        quit(socket)
+        err
+    end
+  end
+
+  def send(email = %Mail.Message{}, socket) do
+    with :ok <- send_from_command(socket, Mail.get_from(email)),
+         :ok <- send_rcpt_command(socket, Mail.all_recipients(email)),
+         :ok <- send_data_command(socket),
+         :ok <- send_text(socket, email |> Mail.Renderers.RFC2822.render()),
+         :ok <- send_data_end_command(socket) do
+      :ok
+    else
+      err ->
+        quit(socket)
+        err
+    end
   end
 end
