@@ -14,11 +14,13 @@ Email clients around the world use different character encodings to represent th
 - `utf-8` (Unicode)
 - And others
 
-When processing these emails, you need to ensure that the character data is correctly converted to a consistent encoding (typically UTF-8) to avoid garbled text or processing errors.
+When processing these emails, you need to ensure that the character data is correctly converted to valid UTF-8. This avoids garbled text and/or processing errors.
 
 ## Configuring Charset Handling in Mailroom
 
-Mailroom supports custom charset handling through the `:parser_opts` configuration. You can provide a `:charset_handler` function that will be called with the charset name and the string to convert.
+Mailroom supports custom charset handling through the `:parser_opts` configuration and passes these to the mail library, which parses each part of the email. providing a`:charset_handler` function.
+
+NOTE: Be sure to handle utf-8 and ascii text without encoding, and a fallback for unknown charsets. This is important to prevent processing errors.
 
 ### Example Implementation
 
@@ -66,7 +68,7 @@ defmodule YourApp.ImapClient do
   # UTF-8 strings can pass through unchanged (elixir default)
   defp handle_charset("utf-8", string), do: string
 
-  # Handle unexpected charsets
+  # FALLBACK: Handle unexpected charsets
   defp handle_charset(charset_name, string) do
     if String.valid?(string) do
       # If the string is valid (utf-8 compliant) then return as is
@@ -75,8 +77,8 @@ defmodule YourApp.ImapClient do
       Logger.error("Unexpected charset: #{charset_name} with an invalid string")
       # You can choose to raise an error or attempt a fallback conversion
       raise "Unexpected charset: #{charset_name} with an invalid string"
-      # Alternatively, you could try a best-effort conversion:
-      # :unicode.characters_to_binary(string, :latin1, :utf8)
+      # Alternatively, you could try a best-effort conversion maybe something like:
+      # sanitize_utf8(string)
     end
   end
 end
@@ -88,6 +90,30 @@ end
 2. For each part of the email with a specified charset, Mailroom (passes `charset_handler` function) to mail library
 3. Your handler function converts the string from the source encoding to UTF-8 (for each mail part)
 4. The resulting UTF-8 string is used in the parsed email
+
+For unexpected charsets, you have several options:
+
+1. **Log and discard** - For non-critical applications
+2. **Raise an error** - When correct encoding is essential
+3. **Try sanitizing** - replace invalid characters with a placeholder
+
+```elixir
+  # something like this might be used to sanitize the string
+  def sanitize_utf8(binary) do
+    binary
+      |> :unicode.characters_to_list(:utf8)
+      |> case do
+           {:error, valid_part, _invalid_part} -> valid_part
+           valid_list when is_list(valid_list) -> valid_list
+         end
+      |> List.to_string()
+    rescue
+      _ -> binary |> :binary.bin_to_list() |> Enum.map(&safe_codepoint/1) |> List.to_string()
+    end
+
+    defp safe_codepoint(byte) when byte < 128, do: byte
+    defp safe_codepoint(_), do: "?"  # Replace invalid bytes with question mark
+```
 
 ## Handling Common Encodings
 
@@ -102,19 +128,10 @@ Erlang's `:unicode` module provides the `characters_to_binary/3` function which 
 
 For other encodings, you may need to use additional libraries or implement custom conversion logic.
 
-## Fallback Strategies
-
-For unexpected charsets, you have several options:
-
-1. **Pass through the string unchanged** - Works if the string is actually valid UTF-8
-2. **Try a common encoding** - Often `:latin1` can work as a reasonable fallback
-3. **Log and discard** - For non-critical applications
-4. **Raise an error** - When correct encoding is essential
-
 ## Testing Charset Handling
 
-To test your charset handler implementation, you can create test emails with different encodings.  Office365 (latin1 encoding in subject and filenames), outlook configured to use utf-8 (subject and filenames) and mac and windows client to use utf-8 (subject and filenames).
+To test your charset handler implementation, you can send emails with all your expected/known encodings (subject and/or attachment) to your inbox.  Running these various emails through your application will help you ensure that the charset handler is handling the encoding as you expect.
 
 ## Conclusion
 
-Properly handling character encodings is essential for working with international emails. By implementing a custom charset handler, you can ensure that email content is correctly converted to UTF-8, this allows mailroom and your application to handle multilingual and multi-encoded emails correctly.
+Properly handling character encodings is essential for working with international emails. By implementing a custom charset handler, you can ensure that email content is correctly converted to UTF-8, this allows `mailroom` and your application to handle multilingual and multi-encoded emails correctly.
