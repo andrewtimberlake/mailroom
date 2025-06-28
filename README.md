@@ -38,3 +38,7 @@ If [available in Hex](https://hex.pm/docs/publish), the package can be installed
      [applications: [:mailroom]]
    end
    ```
+
+## Multi-lingual and Multi-encoded Emails
+
+See [multi_lingual_emails.md](docs/multi_lingual_emails.md) for more information.
