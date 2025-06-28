@@ -1,16 +1,13 @@
 # Handling Multi-lingual and Multi-encoded Emails
-
-When working with multilingual emails from various sources (and different encodings, in particular from outlook), you may encounter messages in different languages and character encodings. 
+When working with multilingual emails from various sources (and different encodings, in particular from outlook), you may encounter messages in different languages and character encodings.
 
 Mailroom provides a way to handle these through the `:charset_handler` option.
 
 ## The Character Encoding Challenge
 
-Email clients around the world use different character encodings to represent their text. Common encodings include:
+Email clients around the world use different character encodings to represent their text. Common email character encodings include:
 
-- `windows-1252` (Western European)
 - `iso-8859-1` (Latin-1)
-- `us-ascii` (ASCII)
 - `utf-8` (Unicode)
 - And others
 
@@ -18,7 +15,7 @@ When processing these emails, you need to ensure that the character data is corr
 
 ## Configuring Charset Handling in Mailroom
 
-Mailroom supports custom charset handling through the `:parser_opts` configuration and passes these to the mail library, which parses each part of the email. providing a`:charset_handler` function.
+Mailroom supports custom charset handling through the `:parser_opts` configuration and passes these to the mail library, which parses each part of the email. providing a `:charset_handler` function.
 
 NOTE: Be sure to handle utf-8 and ascii text without encoding, and a fallback for unknown charsets. This is important to prevent processing errors.
 
@@ -33,12 +30,11 @@ defmodule YourApp.ImapClient do
 
   def config(_opts) do
     [
-      ssl: true,
-      folder: :inbox,
       username: "your_username",
       password: "your_password",
       server: "imap.example.com",
-      ssl_opts: [verify: :verify_none],
+      # other options
+      # ...
       # charset_handler for each email part that specifies a charset
       parser_opts: [charset_handler: &handle_charset/2]
     ]
@@ -70,16 +66,12 @@ defmodule YourApp.ImapClient do
 
   # FALLBACK: Handle unexpected charsets
   defp handle_charset(charset_name, string) do
-    if String.valid?(string) do
-      # If the string is valid (utf-8 compliant) then return as is
-      string
-    else
-      Logger.error("Unexpected charset: #{charset_name} with an invalid string")
-      # You can choose to raise an error or attempt a fallback conversion
-      raise "Unexpected charset: #{charset_name} with an invalid string"
-      # Alternatively, you could try a best-effort conversion maybe something like:
-      # sanitize_utf8(string)
-    end
+    Logger.error("Unexpected charset: #{charset_name} with an invalid string")
+    # You can choose to raise an error or attempt a fallback conversion
+    raise "Unexpected charset: #{charset_name} with an invalid string"
+    # Alternatively, you could replace invalid characters with a chosen valid character:
+    # <<0xFFFD::utf8>> `�`, "?", "_", etc. - for example:
+    # replace_invalid(string, <<0xFFFD::utf8>>)
   end
 end
 ```
@@ -98,21 +90,35 @@ For unexpected charsets, you have several options:
 3. **Try sanitizing** - replace invalid characters with a placeholder
 
 ```elixir
-  # something like this might be used to sanitize the string
-  def sanitize_utf8(binary) do
-    binary
-      |> :unicode.characters_to_list(:utf8)
-      |> case do
-           {:error, valid_part, _invalid_part} -> valid_part
-           valid_list when is_list(valid_list) -> valid_list
-         end
-      |> List.to_string()
-    rescue
-      _ -> binary |> :binary.bin_to_list() |> Enum.map(&safe_codepoint/1) |> List.to_string()
-    end
+  # safely replace invalid characters with a placeholder
+  # this approach deals with large binaries efficiently
+  defp replace_invalid(binary, replacement) do
+    replace_invalid(binary, binary, 0, 0, [], replacement)
+  end
 
-    defp safe_codepoint(byte) when byte < 128, do: byte
-    defp safe_codepoint(_), do: "?"  # Replace invalid bytes with question mark
+  defp replace_invalid(<<>>, original, offset, len, acc, _replacement) do
+    acc = [acc, binary_part(original, offset, len)]
+    IO.iodata_to_binary(acc)
+  end
+
+  defp replace_invalid(<<char::utf8, rest::binary>>, original, offset, len, acc, replacement) do
+    char_len = byte_size(<<char::utf8>>)
+    replace_invalid(rest, original, offset, len + char_len, acc, replacement)
+  end
+
+  defp replace_invalid(<<_, rest::binary>>, original, offset, len, acc, replacement) do
+    acc = [acc, binary_part(original, offset, len), replacement]
+    replace_invalid(rest, original, offset + len + 1, 0, acc, replacement)
+  end
+```
+
+Usage:
+
+```elixir
+invalid_string = "abcd" <> <<233>> <> "f"
+sanitized_string = replace_invalid(invalid_string, <<0xFFFD::utf8>>)
+# sanitized_string returns:
+"abcd�f"
 ```
 
 ## Handling Common Encodings
@@ -120,17 +126,15 @@ For unexpected charsets, you have several options:
 Erlang's `:unicode` module provides the `characters_to_binary/3` function which can convert between various encodings - see documentation [here](https://www.erlang.org/docs/28/apps/stdlib/unicode.html#characters_to_binary/1):
 
 | Email Charset | Erlang Encoding Term |
-|--------------|----------------------|
-| windows-1252 | `:windows_1252`      |
-| iso-8859-1   | `:latin1`            |
-| us-ascii     | `:ascii`             |
-| utf-8        | `:utf8`              |
+|---------------|----------------------|
+| iso-8859-1    | `:latin1`            |
+| utf-8         | `:utf8`              |
 
 For other encodings, you may need to use additional libraries or implement custom conversion logic.
 
 ## Testing Charset Handling
 
-To test your charset handler implementation, you can send emails with all your expected/known encodings (subject and/or attachment) to your inbox.  Running these various emails through your application will help you ensure that the charset handler is handling the encoding as you expect.
+To test your charset handler implementation, you can send emails with all your expected/known encodings (subject and/or attachment) to your inbox. Running these various emails through your application will help you ensure that the charset handler is handling the encoding as you expect.
 
 ## Conclusion
 
