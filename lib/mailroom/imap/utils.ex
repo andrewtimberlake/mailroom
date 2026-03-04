@@ -1,5 +1,7 @@
 defmodule Mailroom.IMAP.Utils do
   @moduledoc false
+  require Logger
+
   def parse_list_only(string) do
     {list, _rest} = parse_list(string)
     list
@@ -29,8 +31,15 @@ defmodule Mailroom.IMAP.Utils do
   def parse_list(<<"{", rest::binary>>, depth, _temp, acc) do
     {octets, <<"\r\n", rest::binary>>} = read_until(rest, "}")
     octets = String.to_integer(octets)
-    <<string::binary-size(octets), rest::binary>> = rest
-    parse_list(rest, depth, nil, prepend_to_list(acc, string))
+
+    case rest do
+      <<string::binary-size(octets), rest::binary>> ->
+        parse_list(rest, depth, nil, prepend_to_list(acc, string))
+
+      _ ->
+        Logger.warning("parse_list: expected string of size #{octets} but got #{inspect(rest)}")
+        {acc, rest}
+    end
   end
 
   def parse_list(<<" ", rest::binary>>, depth, nil, acc),
@@ -47,6 +56,9 @@ defmodule Mailroom.IMAP.Utils do
 
   def parse_list(<<char::utf8, rest::binary>>, depth, temp, acc),
     do: parse_list(rest, depth, <<temp::binary, char>>, acc)
+
+  def parse_list(<<>>, _depth, temp, acc),
+    do: {Enum.reverse(prepend_to_list(acc, temp)), <<>>}
 
   defp prepend_to_list(nil, item), do: List.wrap(item)
   defp prepend_to_list(list, nil), do: list

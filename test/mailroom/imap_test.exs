@@ -1351,6 +1351,51 @@ defmodule Mailroom.IMAPTest do
     IMAP.logout(client)
   end
 
+  test "FETCH with data and not enough data to complete the response" do
+    server = TestServer.start(ssl: true)
+
+    TestServer.expect(server, fn expectations ->
+      expectations
+      |> TestServer.tagged(:connect, "* OK IMAP ready\r\n")
+      |> TestServer.tagged("LOGIN \"test@example.com\" \"P@55w0rD\"\r\n", [
+        "* CAPABILITY (IMAPrev4)\r\n",
+        "OK test@example.com authenticated (Success)\r\n"
+      ])
+      |> TestServer.tagged("SELECT INBOX\r\n", [
+        "* FLAGS (\\Flagged \\Draft \\Deleted \\Seen)\r\n",
+        "* OK [PERMANENTFLAGS (\\Flagged \\Draft \\Deleted \\Seen \\*)] Flags permitted\r\n",
+        "* 2 EXISTS\r\n",
+        "* 1 RECENT\r\n",
+        "OK [READ-WRITE] INBOX selected. (Success)\r\n"
+      ])
+      |> TestServer.tagged("FETCH 1 (ENVELOPE)\r\n", [
+        "* 1 FETCH (ENVELOPE (\"Tue, 3 Mar 2026 15:32:29 +0000\" \"Rechnungen\" (({23}\r\n",
+        "OK Success\r\n"
+      ])
+      |> TestServer.tagged("LOGOUT\r\n", [
+        "* BYE We're out of here\r\n",
+        "OK Logged out\r\n"
+      ])
+    end)
+
+    assert {:ok, client} =
+             IMAP.connect(server.address, "test@example.com", "P@55w0rD",
+               port: server.port,
+               ssl: true,
+               ssl_opts: [verify: :verify_none],
+               debug: @debug
+             )
+
+    {:ok, msgs} =
+      client
+      |> IMAP.select(:inbox)
+      |> IMAP.fetch(1, :envelope)
+
+    assert msgs == [{1, %{envelope: :error}}]
+
+    IMAP.logout(client)
+  end
+
   test "FETCH with extra (unrequested) information returned" do
     server = TestServer.start(ssl: true)
 
