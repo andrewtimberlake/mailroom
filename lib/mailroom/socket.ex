@@ -30,8 +30,9 @@ defmodule Mailroom.Socket do
   The following options are available:
 
     - `ssl` - default `false`, connect via SSL or not
+    - `ssl_opts` - default `[]`, `tls_client_option` options passed to `:ssl.connect`
     - `timeout` - default `#{inspect(@timeout)}`, sets the socket connect and receive timeout
-    - `debug` - default `false`, if true, will print out connection communication
+    - `debug` - default `false`, if `true`, will print out connection communication
 
   ## Examples
 
