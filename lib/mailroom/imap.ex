@@ -61,12 +61,17 @@ defmodule Mailroom.IMAP do
     - `port` - default `110` (`995` if SSL), the port to connect to
     - `ssl` - default `false`, connect via SSL or not
     - `ssl_opts` - default `[]`, `tls_client_option` options passed to `:ssl.connect`
-    - `xoauth2` - default `false`, use XOAUTH2 login. If `true`, the `password` argument
-      should be a base64-encoded string containing the username and OAuth2 bearer token.
-      See https://developers.google.com/workspace/gmail/imap/xoauth2-protocol for
-      detailed information. If `xoauth2` is `true`, the `username` argument will be ignored.
+    - `auth` - `:login` (default), or `:xoauth2`, authentication mechanism to use
     - `debug` - default `false`, if `true`, will print out connection communication
     - `timeout` - default `15_000`, the timeout for connection and communication
+
+  The authentication mechanisms currently implemented are:
+
+    - `:login` - use the IMAP LOGIN command with plaintext username and password
+    - `:xoauth2` - use the IMAP AUTHENTICATE XOAUTH2 command. `username` should be
+      an email address and `password` should be an access token. See
+      https://developers.google.com/workspace/gmail/imap/xoauth2-protocol for
+      detailed information.
 
   ## Examples:
 
@@ -74,8 +79,8 @@ defmodule Mailroom.IMAP do
       {:ok, pid}
 
       iex> ssl_opts = [cacerts: :public_key.cacerts_get(), depth: 3]
-      iex> #{inspect(__MODULE__)}.connect("imap.server", "me", "base64string",
-      ...>  port: 993, ssl: true, ssl_opts: ssl_opts, xoauth2: true)
+      iex> #{inspect(__MODULE__)}.connect("imap.server", "me@example.com", "accesstoken",
+      ...>  port: 993, ssl: true, ssl_opts: ssl_opts, auth: :xoauth2)
       {:ok, pid}
   """
   def connect(server, username, password, options \\ []) do
@@ -83,14 +88,14 @@ defmodule Mailroom.IMAP do
 
     with {:ok, pid} <- GenServer.start_link(__MODULE__, opts),
          {:ok, _} <- GenServer.call(pid, {:connect, server, opts.port, opts.ssl_opts}),
-         {:ok, _msg} <- login(pid, username, password, opts.xoauth2) do
+         {:ok, _msg} <- login(pid, username, password, opts.auth) do
       {:ok, pid}
     end
   end
 
   defp parse_opts(
          opts,
-         acc \\ %{ssl: false, port: nil, debug: false, ssl_opts: [], xoauth2: false}
+         acc \\ %{ssl: false, port: nil, debug: false, ssl_opts: [], auth: :login}
        )
 
   defp parse_opts([], acc),
@@ -108,8 +113,8 @@ defmodule Mailroom.IMAP do
   defp parse_opts([{:debug, debug} | tail], acc),
     do: parse_opts(tail, Map.put(acc, :debug, debug))
 
-  defp parse_opts([{:xoauth2, xoauth2} | tail], acc),
-    do: parse_opts(tail, Map.put(acc, :xoauth2, xoauth2))
+  defp parse_opts([{:auth, auth} | tail], acc),
+    do: parse_opts(tail, Map.put(acc, :auth, auth))
 
   defp parse_opts([_ | tail], acc),
     do: parse_opts(tail, acc)
@@ -123,8 +128,8 @@ defmodule Mailroom.IMAP do
   defp set_default_port(opts),
     do: opts
 
-  defp login(pid, username, password, xoauth2) do
-    case GenServer.call(pid, {:login, username, password, xoauth2}) do
+  defp login(pid, username, password, auth) do
+    case GenServer.call(pid, {:login, username, password, auth}) do
       {:ok, msg} -> {:ok, msg}
       {:error, reason} -> {:error, {:authentication, reason}}
     end
@@ -298,30 +303,33 @@ defmodule Mailroom.IMAP do
     end
   end
 
-  def handle_call({:login, username, password, xoauth2}, from, %{capability: capability} = state) do
-    cond do
-      Enum.member?(capability, "STARTTLS") ->
-        {:noreply,
-         send_command(from, "STARTTLS", %{
-           state
-           | temp: %{username: username, password: password, xoauth2: xoauth2}
-         })}
+  def handle_call({:login, username, password, auth}, from, %{capability: capability} = state) do
+    if Enum.member?(capability, "STARTTLS") do
+      {:noreply,
+       send_command(from, "STARTTLS", %{
+         state
+         | temp: %{username: username, password: password, auth: auth}
+       })}
+    else
+      case auth do
+        :login ->
+          {:noreply,
+           send_command(
+             from,
+             ["LOGIN", " ", quote_string(username), " ", quote_string(password)],
+             state
+           )}
 
-      xoauth2 ->
-        {:noreply,
-         send_command(
-           from,
-           ["AUTHENTICATE", " ", "XOAUTH2", " ", quote_string(password)],
-           state
-         )}
+        :xoauth2 ->
+          client_response = xoauth2_response(username, password)
 
-      true ->
-        {:noreply,
-         send_command(
-           from,
-           ["LOGIN", " ", quote_string(username), " ", quote_string(password)],
-           state
-         )}
+          {:noreply,
+           send_command(
+             from,
+             ["AUTHENTICATE", " ", "XOAUTH2", " ", quote_string(client_response)],
+             state
+           )}
+      end
     end
   end
 
@@ -682,7 +690,7 @@ defmodule Mailroom.IMAP do
          %{
            socket: socket,
            cmd_map: cmd_map,
-           temp: %{username: username, password: password, xoauth2: xoauth2}
+           temp: %{username: username, password: password, auth: auth}
          } =
            state
        ) do
@@ -690,22 +698,30 @@ defmodule Mailroom.IMAP do
     state = %{state | cmd_map: Map.delete(cmd_map, cmd_tag)}
     state = %{state | socket: ssl_socket, capability: nil}
 
-    if xoauth2 do
-      {:noreply,
-       send_command(caller, ["AUTHENTICATE", " ", "XOAUTH2", " ", quote_string(password)], %{
-         state
-         | temp: nil
-       })}
-    else
-      {:noreply,
-       send_command(
-         caller,
-         ["LOGIN", " ", quote_string(username), " ", quote_string(password)],
-         %{
-           state
-           | temp: nil
-         }
-       )}
+    case auth do
+      :login ->
+        {:noreply,
+         send_command(
+           caller,
+           ["LOGIN", " ", quote_string(username), " ", quote_string(password)],
+           %{
+             state
+             | temp: nil
+           }
+         )}
+
+      :xoauth2 ->
+        client_response = xoauth2_response(username, password)
+
+        {:noreply,
+         send_command(
+           caller,
+           ["AUTHENTICATE", " ", "XOAUTH2", " ", quote_string(client_response)],
+           %{
+             state
+             | temp: nil
+           }
+         )}
     end
   end
 
@@ -1005,5 +1021,9 @@ defmodule Mailroom.IMAP do
 
   defp flatten_fetch_results([head | tail]) do
     [head | flatten_fetch_results(tail)]
+  end
+
+  defp xoauth2_response(username, access_token) do
+    Base.encode64("user=#{username}\x01auth=Bearer #{access_token}\x01\x01")
   end
 end
