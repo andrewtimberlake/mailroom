@@ -393,7 +393,7 @@ defmodule Mailroom.IMAP do
     do: {:noreply, send_command(from, "CLOSE", state)}
 
   def handle_call(:logout, from, state),
-    do: {:noreply, send_command(from, "LOGOUT", state)}
+    do: {:noreply, send_command(from, "LOGOUT", %{state | state: :logging_out})}
 
   def handle_call(:email_count, _from, %{exists: exists} = state),
     do: {:reply, exists, state}
@@ -438,9 +438,29 @@ defmodule Mailroom.IMAP do
   end
 
   def handle_info({:ssl_closed, _}, state) do
-    Logger.warning("SSL closed")
-    {:stop, :ssl_closed, state}
+    # SSL connection closed - this is normal when logging out
+    # Check if we're in the process of logging out
+    if state.state == :logged_out or state.state == :logging_out do
+      # Expected - connection closed after logout
+      {:stop, :normal, state}
+    else
+      # Unexpected close - log it but stop normally to avoid error logs
+      Logger.debug("IMAP SSL connection closed (state: #{state.state})")
+      {:stop, :normal, state}
+    end
   end
+
+  def terminate(_reason, %{socket: socket} = _state) when not is_nil(socket) do
+    # Try to close the socket gracefully on termination
+    try do
+      Socket.close(socket)
+    rescue
+      _ -> :ok
+    end
+    :ok
+  end
+
+  def terminate(_reason, _state), do: :ok
 
   defp cancel_idle(socket, timer) do
     if timer, do: Process.cancel_timer(timer)
