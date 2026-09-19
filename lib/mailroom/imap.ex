@@ -283,6 +283,7 @@ defmodule Mailroom.IMAP do
     do: GenServer.call(pid, :state)
 
   def init(opts) do
+    Process.set_label(__MODULE__)
     {:ok, %State{debug: opts.debug, ssl: opts.ssl}}
   end
 
